@@ -48,20 +48,34 @@ input[type="checkbox"] { accent-color: var(--running); }
 .pill.success { color: var(--success); border-color: #356251; }
 .pill.warning { color: var(--warning); }
 .pill.neutral { color: var(--neutral); }
-.workflow { display: grid; grid-template-columns: minmax(180px,1.6fr) 125px minmax(130px,1fr) 105px 56px; align-items: center; gap: 14px; padding: 11px 18px; border-top: 1px solid var(--line); font-size: 13px; }
-.workflow:hover { background: var(--surface2); }
+.workflow {
+  display: grid;
+  grid-template-columns: minmax(180px,1.6fr) 125px minmax(130px,1fr) 105px 56px;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 18px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--row-text);
+  --row-text: #f6f9fc;
+  --row-muted: #d9e3ee;
+}
+/* Color the entire workflow row, including all five columns.
+   Success = green; failures = red; other/never = yellow; active = blue. */
+.workflow.success { --row-bg: #20563c; --row-hover: #2a684a; }
+.workflow.failure { --row-bg: #713437; --row-hover: #844044; }
+.workflow.warning, .workflow.neutral, .workflow.never {
+  --row-bg: #68521d; --row-hover: #806528;
+}
+.workflow.running { --row-bg: #224d75; --row-hover: #2c608f; }
+.workflow { background: var(--row-bg); }
+.workflow:hover { background: var(--row-hover); }
 .workflow-name { min-width: 0; font-weight: 550; overflow-wrap: anywhere; }
-.workflow-name a:hover, .run-link:hover { color: var(--running); }
-.dim { color: var(--muted); }
-.badge { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; white-space: nowrap; }
-.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--neutral); display: inline-block; }
-.badge.success .dot { background: var(--success); }
-.badge.failure .dot { background: var(--failure); }
-.badge.running .dot { background: var(--running); }
-.badge.warning .dot { background: var(--warning); }
-.badge.neutral .dot { background: var(--neutral); }
-.meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
-.run-link { justify-self: end; color: var(--running); font-variant-numeric: tabular-nums; }
+.workflow a:hover { color: inherit; text-decoration: underline; }
+.workflow .dim { color: var(--row-muted); }
+.badge { font-size: 12px; font-weight: 650; white-space: nowrap; }
+.meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--row-muted); }
+.run-link { justify-self: end; color: inherit; text-decoration: underline; text-underline-offset: 2px; font-variant-numeric: tabular-nums; }
 .empty, .placeholder { padding: 20px; font-size: 13px; }
 .error { color: var(--failure); }
 .stale { color: var(--warning); }
@@ -89,4 +103,14 @@ footer a { text-decoration: underline; text-underline-offset: 3px; }
   :root { color-scheme: light; --bg:#f4f7fa; --surface:#fff; --surface2:#f0f5fa;
     --line:#d6e0e8; --fg:#162331; --muted:#536576; --success:#117850;
     --failure:#b62e36; --running:#155eb3; --warning:#94600c; --neutral:#627084; }
+  .workflow {
+    --row-text: #172434;
+    --row-muted: #334a5a;
+  }
+  .workflow.success { --row-bg: #c0e7cb; --row-hover: #aadbb9; }
+  .workflow.failure { --row-bg: #f3c2c4; --row-hover: #e9adaf; }
+  .workflow.warning, .workflow.neutral, .workflow.never {
+    --row-bg: #ffe5a0; --row-hover: #f5d77e;
+  }
+  .workflow.running { --row-bg: #bcd9f6; --row-hover: #a5cbf3; }
 }

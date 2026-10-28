@@ -124,14 +124,14 @@ function render() {
       details.appendChild(el("div", "empty", "No GitHub Actions workflows"));
     }
     for (const wf of visible) {
-      const row = el("div", "workflow");
+      const kind = category(wf);
+      const row = el("div", "workflow " + kind);
       const name = el("div", "workflow-name");
       name.appendChild(githubLink(wf.url, wf.name));
       if (wf.state !== "active") {
         append(name, el("span", "dim", " · " + wf.state.replaceAll("_", " ")));
       }
-      const kind = category(wf);
-      const badge = append(el("div", "badge " + kind), el("span", "dot"), el("span", null, statusLabel(wf)));
+      const badge = el("div", "badge", statusLabel(wf));
       const run = wf.run;
       const branch = el("div", "meta branch", run ? (run.branch || "—") : "—");
       const event = el("div", "meta event", run ? (run.event || "—") : "—");
