@@ -25,10 +25,17 @@ function githubLink(url, label, cls) {
   }
   return node;
 }
+function completedRun(workflow) {
+  if (Object.prototype.hasOwnProperty.call(workflow, "last_completed")) return workflow.last_completed;
+  return workflow.run && workflow.run.status === "completed" ? workflow.run : null;
+}
+function activeRuns(workflow) {
+  if (Array.isArray(workflow.active_runs)) return workflow.active_runs;
+  return workflow.run && workflow.run.status !== "completed" ? [workflow.run] : [];
+}
 function category(workflow) {
-  const run = workflow.run;
+  const run = completedRun(workflow);
   if (!run) return "never";
-  if (run.status !== "completed") return "running";
   const conclusion = run.conclusion;
   if (conclusion === "success") return "success";
   if (["failure", "timed_out", "action_required", "startup_failure"].includes(conclusion)) return "failure";
@@ -36,11 +43,8 @@ function category(workflow) {
   return "neutral";
 }
 function statusLabel(workflow) {
-  const run = workflow.run;
-  if (!run) return "Never run";
-  if (run.status !== "completed") {
-    return {in_progress:"Running",queued:"Queued",waiting:"Waiting",pending:"Pending",requested:"Requested"}[run.status] || run.status;
-  }
+  const run = completedRun(workflow);
+  if (!run) return activeRuns(workflow).length ? "No completed run" : "Never run";
   return {success:"Success",failure:"Failed",timed_out:"Timed out",cancelled:"Cancelled",
     skipped:"Skipped",neutral:"Neutral",action_required:"Action required",
     startup_failure:"Startup failure",stale:"Stale"}[run.conclusion] || run.conclusion || "Completed";
@@ -64,6 +68,7 @@ function countStats(data) {
       stats.workflows++;
       const cls = category(workflow);
       if (cls in stats) stats[cls]++;
+      if (activeRuns(workflow).length) stats.running++;
     }
   }
   return stats;
@@ -83,7 +88,8 @@ function pill(label, cls) { return el("span", "pill " + cls, label); }
 function matches(workflow) {
   const kind = category(workflow);
   if (state.filter === "attention" && !["failure", "warning"].includes(kind)) return false;
-  if (["running","success","never"].includes(state.filter) && state.filter !== kind) return false;
+  if (state.filter === "running" && !activeRuns(workflow).length) return false;
+  if (["success","never"].includes(state.filter) && state.filter !== kind) return false;
   return true;
 }
 function render() {
@@ -113,7 +119,7 @@ function render() {
     append(title, githubLink(repo.url, repo.name, "repo-link"));
     const totals = el("span", "repo-totals");
     const failing = repo.workflows.filter((w) => category(w) === "failure").length;
-    const running = repo.workflows.filter((w) => category(w) === "running").length;
+    const running = repo.workflows.filter((w) => activeRuns(w).length).length;
     if (failing) totals.appendChild(pill(failing + " failing", "failure"));
     if (running) totals.appendChild(pill(running + " running", "running"));
     if (repo.archived) totals.appendChild(pill("Archived", "neutral"));
@@ -132,13 +138,26 @@ function render() {
         append(name, el("span", "dim", " · " + wf.state.replaceAll("_", " ")));
       }
       const badge = el("div", "badge", statusLabel(wf));
-      const run = wf.run;
+      const statusCell = append(el("div", "status-cell"), badge);
+      const active = activeRuns(wf);
+      if (active.length) {
+        const activeRun = active[0];
+        const verb = {in_progress:"Running", queued:"Queued", waiting:"Waiting",
+          pending:"Pending", requested:"Requested"}[activeRun.status] || "Active";
+        const activeLabel = active.length === 1
+          ? verb + " #" + (activeRun.number || activeRun.id)
+          : active.length + " active runs";
+        const notice = githubLink(activeRun.url, activeLabel, "active-indicator");
+        notice.title = active.length + " unfinished run(s); opens the most recent";
+        statusCell.appendChild(notice);
+      }
+      const run = completedRun(wf);
       const branch = el("div", "meta branch", run ? (run.branch || "—") : "—");
       const event = el("div", "meta event", run ? (run.event || "—") : "—");
       const age = el("div", "meta age", run ? relativeTime(run.created_at) : "—");
       if (run && run.created_at) age.title = new Date(run.created_at).toLocaleString();
       const link = run ? githubLink(run.url, "#" + (run.number || run.id), "run-link") : el("span", "dim run-link", "—");
-      append(row, name, badge, branch, age, link);
+      append(row, name, statusCell, branch, age, link);
       // The event is accessible as a tooltip without consuming another column.
       if (run) badge.title = "Trigger: " + (run.event || "unknown") +
         (run.attempt > 1 ? "; attempt " + run.attempt : "");
