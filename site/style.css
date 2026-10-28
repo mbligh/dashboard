@@ -60,20 +60,26 @@ input[type="checkbox"] { accent-color: var(--running); }
   --row-text: #f6f9fc;
   --row-muted: #d9e3ee;
 }
-/* Color the entire workflow row, including all five columns.
-   Success = green; failures = red; other/never = yellow; active = blue. */
+/* Entire row follows the latest COMPLETED run; unfinished runs use a separate blue notice. */
 .workflow.success { --row-bg: #20563c; --row-hover: #2a684a; }
 .workflow.failure { --row-bg: #713437; --row-hover: #844044; }
 .workflow.warning, .workflow.neutral, .workflow.never {
   --row-bg: #68521d; --row-hover: #806528;
 }
-.workflow.running { --row-bg: #224d75; --row-hover: #2c608f; }
 .workflow { background: var(--row-bg); }
 .workflow:hover { background: var(--row-hover); }
 .workflow-name { min-width: 0; font-weight: 550; overflow-wrap: anywhere; }
 .workflow a:hover { color: inherit; text-decoration: underline; }
 .workflow .dim { color: var(--row-muted); }
+.status-cell { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; min-width: 0; }
 .badge { font-size: 12px; font-weight: 650; white-space: nowrap; }
+.active-indicator {
+  display: inline-block; max-width: 100%; overflow-wrap: anywhere;
+  color: #fff; font-size: 11px; font-weight: 600;
+  padding: 2px 6px; border: 1px solid #93c5fd; border-radius: 5px;
+  background: #1c598b; text-decoration: none;
+}
+.workflow .active-indicator:hover { color: #fff; background: #1674b2; }
 .meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--row-muted); }
 .run-link { justify-self: end; color: inherit; text-decoration: underline; text-underline-offset: 2px; font-variant-numeric: tabular-nums; }
 .empty, .placeholder { padding: 20px; font-size: 13px; }
@@ -112,5 +118,4 @@ footer a { text-decoration: underline; text-underline-offset: 3px; }
   .workflow.warning, .workflow.neutral, .workflow.never {
     --row-bg: #ffe5a0; --row-hover: #f5d77e;
   }
-  .workflow.running { --row-bg: #bcd9f6; --row-hover: #a5cbf3; }
 }
