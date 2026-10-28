@@ -1,0 +1,161 @@
+#!/usr/bin/env python3
+"""Collect the most recent GitHub Actions run for every public repository workflow.
+
+Standard-library only. The generated JSON is intended for public GitHub Pages.
+Private repositories are never discovered or published.
+"""
+import argparse
+import json
+import os
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
+
+API = "https://api.github.com"
+
+
+class GitHubAPI:
+    def __init__(self, token=None):
+        self.token = token
+
+    def get(self, path, **params):
+        url = API + path
+        if params:
+            url += "?" + urlencode(params)
+        headers = {
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "mbligh-dashboard-collector",
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
+        if self.token:
+            headers["Authorization"] = "Bearer " + self.token
+        for attempt in range(3):
+            try:
+                with urlopen(Request(url, headers=headers), timeout=30) as response:
+                    return json.load(response)
+            except HTTPError as exc:
+                body = exc.read(500).decode("utf-8", "replace")
+                if exc.code in (429, 500, 502, 503, 504) and attempt < 2:
+                    time.sleep(2 ** attempt)
+                    continue
+                raise RuntimeError("GitHub API HTTP %s for %s: %s" % (exc.code, path, body)) from exc
+            except (URLError, TimeoutError) as exc:
+                if attempt < 2:
+                    time.sleep(2 ** attempt)
+                    continue
+                raise RuntimeError("GitHub API unavailable for %s: %s" % (path, exc)) from exc
+
+
+def pages(api, path, key=None):
+    """Read a paginated GitHub API list, without a guessed item limit."""
+    for number in range(1, 101):
+        payload = api.get(path, per_page=100, page=number)
+        items = payload[key] if key else payload
+        if not isinstance(items, list):
+            raise ValueError("Unexpected GitHub API response for " + path)
+        yield from items
+        if len(items) < 100:
+            return
+    raise RuntimeError("Exceeded 100 API pages for " + path)
+
+
+def slim_run(run):
+    if run is None:
+        return None
+    return {
+        "id": run["id"],
+        "url": run["html_url"],
+        "status": run["status"],
+        "conclusion": run.get("conclusion"),
+        "created_at": run.get("created_at"),
+        "updated_at": run.get("updated_at"),
+        "started_at": run.get("run_started_at"),
+        "branch": run.get("head_branch"),
+        "event": run.get("event"),
+        "attempt": run.get("run_attempt", 1),
+        "number": run.get("run_number"),
+    }
+
+
+def collect(api, owner, exclude_repo="dashboard"):
+    # This endpoint lists PUBLIC repositories even with a token. It cannot
+    # accidentally publish private repositories visible to a credential.
+    repositories = list(pages(api, "/users/%s/repos" % owner, None))
+    repositories = [r for r in repositories if r["owner"]["login"].lower() == owner.lower()
+                    and not r.get("private") and r["name"].lower() != exclude_repo.lower()]
+    repositories.sort(key=lambda r: r["name"].casefold())
+    result = []
+    for repo in repositories:
+        name = repo["name"]
+        root = "/repos/%s/%s" % (owner, name)
+        workflows = list(pages(api, root + "/actions/workflows", "workflows"))
+        if not workflows:
+            result.append({"name": name, "url": repo["html_url"], "archived": repo.get("archived", False),
+                           "workflows": []})
+            print("%s: no workflows" % name, file=sys.stderr)
+            continue
+
+        # Usually a single bulk request is enough for an entire repository.
+        # One per-workflow lookup covers infrequent workflows outside the last 100 runs.
+        recent = api.get(root + "/actions/runs", per_page=100)["workflow_runs"]
+        latest = {}
+        for run in recent:
+            wid = run["workflow_id"]
+            if wid not in latest or (run.get("created_at") or "", run["id"]) > (
+                    latest[wid].get("created_at") or "", latest[wid]["id"]):
+                latest[wid] = run
+
+        output = []
+        for workflow in workflows:
+            wid = workflow["id"]
+            run = latest.get(wid)
+            if run is None:
+                older = api.get(root + "/actions/workflows/%s/runs" % wid, per_page=1)["workflow_runs"]
+                run = older[0] if older else None
+            output.append({
+                "id": wid,
+                "name": workflow["name"],
+                "path": workflow.get("path"),
+                "state": workflow.get("state", "active"),
+                "url": workflow.get("html_url") or repo["html_url"] + "/actions",
+                "run": slim_run(run),
+            })
+        output.sort(key=lambda w: w["name"].casefold())
+        result.append({"name": name, "url": repo["html_url"], "archived": repo.get("archived", False),
+                       "workflows": output})
+        print("%s: %s workflows, %s bulk runs, %s fallback requests" %
+              (name, len(output), len(recent), sum(w["id"] not in latest for w in output)),
+              file=sys.stderr)
+    return {
+        "owner": owner,
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+        "repositories": result,
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--owner", default="mbligh")
+    parser.add_argument("--output", default="site/status.json")
+    parser.add_argument("--exclude-repo", default="dashboard",
+                        help="Exclude the dashboard itself (its currently-running publisher cannot be final)")
+    args = parser.parse_args()
+    # A dashboard repository GITHUB_TOKEN is sufficient for PUBLIC APIs.
+    # An optional dedicated token can improve rate-limit headroom.
+    token = os.getenv("DASHBOARD_READ_TOKEN") or os.getenv("GITHUB_TOKEN")
+    snapshot = collect(GitHubAPI(token), args.owner, args.exclude_repo)
+    output = Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    temporary = output.with_suffix(".tmp")
+    temporary.write_text(json.dumps(snapshot, separators=(",", ":"), ensure_ascii=False) + "\n",
+                         encoding="utf-8")
+    temporary.replace(output)
+    print("Wrote %s (%s repositories)" % (output, len(snapshot["repositories"])), file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main()

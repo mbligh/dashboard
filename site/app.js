@@ -1,0 +1,193 @@
+"use strict";
+
+const byId = (id) => document.getElementById(id);
+let snapshot = null;
+let lastError = null;
+const state = { query: "", filter: "all", showEmpty: false };
+
+function el(tag, cls, value) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (value !== undefined && value !== null) node.textContent = String(value);
+  return node;
+}
+function append(parent, ...children) {
+  children.forEach((child) => parent.appendChild(child));
+  return parent;
+}
+function githubLink(url, label, cls) {
+  const node = el("a", cls, label);
+  // No untrusted HTML or non-GitHub URL is allowed in the document.
+  if (typeof url === "string" && /^https:\/\/github\.com\/mbligh\/[a-zA-Z0-9_.-]+(?:\/|$)/.test(url)) {
+    node.href = url;
+    node.target = "_blank";
+    node.rel = "noopener noreferrer";
+  }
+  return node;
+}
+function category(workflow) {
+  const run = workflow.run;
+  if (!run) return "never";
+  if (run.status !== "completed") return "running";
+  const conclusion = run.conclusion;
+  if (conclusion === "success") return "success";
+  if (["failure", "timed_out", "action_required", "startup_failure"].includes(conclusion)) return "failure";
+  if (conclusion === "cancelled") return "warning";
+  return "neutral";
+}
+function statusLabel(workflow) {
+  const run = workflow.run;
+  if (!run) return "Never run";
+  if (run.status !== "completed") {
+    return {in_progress:"Running",queued:"Queued",waiting:"Waiting",pending:"Pending",requested:"Requested"}[run.status] || run.status;
+  }
+  return {success:"Success",failure:"Failed",timed_out:"Timed out",cancelled:"Cancelled",
+    skipped:"Skipped",neutral:"Neutral",action_required:"Action required",
+    startup_failure:"Startup failure",stale:"Stale"}[run.conclusion] || run.conclusion || "Completed";
+}
+function relativeTime(value) {
+  if (!value) return "Unknown";
+  const millis = Date.parse(value);
+  if (!Number.isFinite(millis)) return "Unknown";
+  const seconds = Math.max(0, Math.floor((Date.now() - millis) / 1000));
+  if (seconds < 60) return "just now";
+  if (seconds < 3600) return Math.floor(seconds / 60) + "m ago";
+  if (seconds < 86400) return Math.floor(seconds / 3600) + "h ago";
+  if (seconds < 86400 * 30) return Math.floor(seconds / 86400) + "d ago";
+  return Math.floor(seconds / (86400 * 30)) + "mo ago";
+}
+function countStats(data) {
+  const stats = {repos: 0, workflows: 0, failure: 0, running: 0, success: 0};
+  stats.repos = data.repositories.length;
+  for (const repo of data.repositories) {
+    for (const workflow of repo.workflows) {
+      stats.workflows++;
+      const cls = category(workflow);
+      if (cls in stats) stats[cls]++;
+    }
+  }
+  return stats;
+}
+function summary() {
+  const container = byId("summary");
+  container.replaceChildren();
+  if (!snapshot) return;
+  const stats = countStats(snapshot);
+  for (const [key, label] of [["repos","Repositories"],["workflows","Workflows"],
+      ["failure","Failing"],["running","Running / queued"],["success","Successful"]]) {
+    append(container, append(el("div", "metric " + key),
+      el("div", "value", stats[key]), el("div", "label", label)));
+  }
+}
+function pill(label, cls) { return el("span", "pill " + cls, label); }
+function matches(workflow) {
+  const kind = category(workflow);
+  if (state.filter === "attention" && !["failure", "warning"].includes(kind)) return false;
+  if (["running","success","never"].includes(state.filter) && state.filter !== kind) return false;
+  return true;
+}
+function render() {
+  summary();
+  const container = byId("repos");
+  const openness = {};
+  container.querySelectorAll("details[data-repo]").forEach((node) => { openness[node.dataset.repo] = node.open; });
+  container.replaceChildren();
+  if (!snapshot) {
+    container.appendChild(el("p", "placeholder", lastError || "Loading snapshot…"));
+    return;
+  }
+  const query = state.query.trim().toLowerCase();
+  let shown = 0;
+  for (const repo of snapshot.repositories) {
+    const repoMatch = repo.name.toLowerCase().includes(query);
+    const visible = repo.workflows.filter((wf) =>
+      matches(wf) && (repoMatch || wf.name.toLowerCase().includes(query)));
+    if (!visible.length && !(state.showEmpty && !repo.workflows.length &&
+      (repoMatch || !query) && state.filter === "all")) continue;
+    if (!visible.length && repo.workflows.length) continue;
+    const details = el("details", "repo");
+    details.dataset.repo = repo.name;
+    details.open = Object.prototype.hasOwnProperty.call(openness, repo.name) ? openness[repo.name] : true;
+    const head = el("summary");
+    const title = el("span", "repo-title");
+    append(title, githubLink(repo.url, repo.name, "repo-link"));
+    const totals = el("span", "repo-totals");
+    const failing = repo.workflows.filter((w) => category(w) === "failure").length;
+    const running = repo.workflows.filter((w) => category(w) === "running").length;
+    if (failing) totals.appendChild(pill(failing + " failing", "failure"));
+    if (running) totals.appendChild(pill(running + " running", "running"));
+    if (repo.archived) totals.appendChild(pill("Archived", "neutral"));
+    totals.appendChild(pill(repo.workflows.length + " workflows", "neutral"));
+    append(head, title, totals);
+    details.appendChild(head);
+    if (!repo.workflows.length) {
+      details.appendChild(el("div", "empty", "No GitHub Actions workflows"));
+    }
+    for (const wf of visible) {
+      const row = el("div", "workflow");
+      const name = el("div", "workflow-name");
+      name.appendChild(githubLink(wf.url, wf.name));
+      if (wf.state !== "active") {
+        append(name, el("span", "dim", " · " + wf.state.replaceAll("_", " ")));
+      }
+      const kind = category(wf);
+      const badge = append(el("div", "badge " + kind), el("span", "dot"), el("span", null, statusLabel(wf)));
+      const run = wf.run;
+      const branch = el("div", "meta branch", run ? (run.branch || "—") : "—");
+      const event = el("div", "meta event", run ? (run.event || "—") : "—");
+      const age = el("div", "meta age", run ? relativeTime(run.created_at) : "—");
+      if (run && run.created_at) age.title = new Date(run.created_at).toLocaleString();
+      const link = run ? githubLink(run.url, "#" + (run.number || run.id), "run-link") : el("span", "dim run-link", "—");
+      append(row, name, badge, branch, age, link);
+      // The event is accessible as a tooltip without consuming another column.
+      if (run) badge.title = "Trigger: " + (run.event || "unknown") +
+        (run.attempt > 1 ? "; attempt " + run.attempt : "");
+      details.appendChild(row);
+    }
+    container.appendChild(details);
+    shown++;
+  }
+  if (!shown) container.appendChild(el("p", "placeholder", "No workflows match the selected filters."));
+}
+function freshness() {
+  if (!snapshot) {
+    byId("freshness").textContent = lastError || "Loading snapshot…";
+    byId("freshness").classList.toggle("error", !!lastError);
+    return;
+  }
+  const age = (Date.now() - Date.parse(snapshot.generated_at)) / 60000;
+  const node = byId("freshness");
+  node.textContent = "Snapshot " + relativeTime(snapshot.generated_at) +
+    (lastError ? " · Refresh failed" : "");
+  node.title = "Generated " + new Date(snapshot.generated_at).toLocaleString() +
+    (lastError ? "; " + lastError : "");
+  node.classList.toggle("stale", age > 45 || !!lastError);
+  node.classList.toggle("error", !!lastError);
+}
+async function refresh() {
+  const button = byId("refresh");
+  button.disabled = true;
+  try {
+    const response = await fetch("./status.json", {cache:"no-store"});
+    if (!response.ok) throw new Error("HTTP " + response.status + " loading snapshot");
+    const data = await response.json();
+    if (!Array.isArray(data.repositories) || !data.generated_at) throw new Error("Invalid snapshot");
+    snapshot = data;
+    lastError = null;
+    render();
+  } catch (error) {
+    lastError = error.message;
+    if (!snapshot) render();
+  } finally {
+    button.disabled = false;
+    freshness();
+  }
+}
+byId("search").addEventListener("input", (event) => { state.query = event.target.value; render(); });
+byId("filter").addEventListener("change", (event) => { state.filter = event.target.value; render(); });
+byId("empty").addEventListener("change", (event) => { state.showEmpty = event.target.checked; render(); });
+byId("refresh").addEventListener("click", refresh);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+setInterval(() => { if (!document.hidden) refresh(); }, 120000);
+setInterval(freshness, 30000);
+refresh();
