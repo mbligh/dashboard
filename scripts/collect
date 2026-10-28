@@ -114,33 +114,58 @@ def collect(api, owner, exclude_repo="dashboard"):
         # Usually a single bulk request is enough for an entire repository.
         # One per-workflow lookup covers infrequent workflows outside the last 100 runs.
         recent = api.get(root + "/actions/runs", per_page=100)["workflow_runs"]
-        latest = {}
+        runs_by_workflow = {}
         for run in recent:
-            wid = run["workflow_id"]
-            if wid not in latest or (run.get("created_at") or "", run["id"]) > (
-                    latest[wid].get("created_at") or "", latest[wid]["id"]):
-                latest[wid] = run
+            runs_by_workflow.setdefault(run["workflow_id"], []).append(run)
 
         output = []
+        fallback_requests = 0
         for workflow in workflows:
             wid = workflow["id"]
-            run = latest.get(wid)
-            if run is None:
-                older = api.get(root + "/actions/workflows/%s/runs" % wid, per_page=1)["workflow_runs"]
-                run = older[0] if older else None
+            runs = runs_by_workflow.get(wid, [])
+            # Keep the last completed run separate from every unfinished run.
+            if not any(r["status"] == "completed" for r in runs):
+                fallback_requests += 1
+                older = api.get(root + "/actions/workflows/%s/runs" % wid, per_page=100)["workflow_runs"]
+                seen = {r["id"]: r for r in runs}
+                for r in older:
+                    seen.setdefault(r["id"], r)
+                runs = list(seen.values())
+                if not any(r["status"] == "completed" for r in runs) and len(older) == 100:
+                    fallback_requests += 1
+                    completed = api.get(root + "/actions/workflows/%s/runs" % wid,
+                                        per_page=1, status="completed")["workflow_runs"]
+                    for r in completed:
+                        seen.setdefault(r["id"], r)
+                    runs = list(seen.values())
+            latest = max(runs, key=lambda r: (r.get("created_at") or "", r["id"]), default=None)
+            completed = [r for r in runs if r["status"] == "completed"]
+            # updated_at captures the finish of a run, including reruns.
+            last_completed = max(
+                completed,
+                key=lambda r: (r.get("updated_at") or r.get("created_at") or "", r["id"]),
+                default=None,
+            )
+            active = sorted(
+                (r for r in runs if r["status"] != "completed"),
+                key=lambda r: (r.get("created_at") or "", r["id"]),
+                reverse=True,
+            )
             output.append({
                 "id": wid,
                 "name": workflow["name"],
                 "path": workflow.get("path"),
                 "state": workflow.get("state", "active"),
                 "url": workflow_page_url(repo["html_url"], workflow),
-                "run": slim_run(run),
+                "run": slim_run(latest),
+                "last_completed": slim_run(last_completed),
+                "active_runs": [slim_run(r) for r in active],
             })
         output.sort(key=lambda w: w["name"].casefold())
         result.append({"name": name, "url": repo["html_url"], "archived": repo.get("archived", False),
                        "workflows": output})
         print("%s: %s workflows, %s bulk runs, %s fallback requests" %
-              (name, len(output), len(recent), sum(w["id"] not in latest for w in output)),
+              (name, len(output), len(recent), fallback_requests),
               file=sys.stderr)
     return {
         "owner": owner,

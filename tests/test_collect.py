@@ -30,6 +30,8 @@ class FakeAPI:
             ]}
         if path == "/repos/mbligh/demo/actions/runs":
             return {"workflow_runs": [
+                {"workflow_id": 1, "id": 11, "html_url": "https://github.com/mbligh/demo/actions/runs/11",
+                 "status": "in_progress", "conclusion": None, "created_at": "2026-01-03T00:00:00Z"},
                 {"workflow_id": 1, "id": 10, "html_url": "https://github.com/mbligh/demo/actions/runs/10",
                  "status": "completed", "conclusion": "failure", "created_at": "2026-01-02T00:00:00Z"},
                 {"workflow_id": 1, "id": 9, "html_url": "https://github.com/mbligh/demo/actions/runs/9",
@@ -52,12 +54,19 @@ class CollectTest(unittest.TestCase):
         self.assertEqual([r["name"] for r in data["repositories"]], ["demo"])
         workflows = data["repositories"][0]["workflows"]
         self.assertEqual([w["name"] for w in workflows], ["Build", "Never", "Rare"])
-        self.assertEqual(workflows[0]["run"]["id"], 10)
+        self.assertEqual(workflows[0]["run"]["id"], 11)
+        self.assertEqual(workflows[0]["last_completed"]["id"], 10)
+        self.assertEqual(workflows[0]["last_completed"]["conclusion"], "failure")
+        self.assertEqual([r["id"] for r in workflows[0]["active_runs"]], [11])
         self.assertEqual(workflows[0]["url"], "https://github.com/mbligh/demo/actions/workflows/build.yml")
         self.assertEqual(workflows[1]["url"], "https://github.com/mbligh/demo/actions/workflows/3")
         self.assertEqual(workflows[2]["url"], "https://github.com/mbligh/demo/actions/workflows/2")
         self.assertIsNone(workflows[1]["run"])
+        self.assertIsNone(workflows[1]["last_completed"])
+        self.assertEqual(workflows[1]["active_runs"], [])
         self.assertEqual(workflows[2]["run"]["id"], 3)
+        self.assertEqual(workflows[2]["last_completed"]["id"], 3)
+        self.assertEqual(workflows[2]["active_runs"], [])
         self.assertEqual(workflows[2]["state"], "disabled_manually")
         self.assertEqual(len(api.calls), 5)
 
