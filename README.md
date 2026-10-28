@@ -11,6 +11,8 @@ Dashboard showing the latest GitHub Actions run **per workflow** for all public 
 3. Run **Actions → Publish Actions Dashboard → Run workflow**, or push to \`main\`.
 4. Open https://mbligh.github.io/dashboard/ after deployment succeeds.
 
+Row color reflects the latest **completed** run only. Newer or concurrent running/queued runs appear as separate clickable blue notices without replacing the completed result. The running summary counts workflows with active runs separately from completed outcomes.
+
 The site refreshes its static JSON snapshot every two minutes while the tab is visible; it **never queries the GitHub API from the browser**. The collection workflow refreshes the snapshot every 15 minutes, on changes to this repository, or manually.
 
 The publisher discovers the owner's public repositories automatically (including newly created ones). For each repository, it lists the workflows and fetches the most recent 100 runs in one request. Any workflow not represented in those runs gets a one-run fallback lookup. This catches rarely executed workflows and disabled workflows; no per-workflow polling is done for the usual case.
