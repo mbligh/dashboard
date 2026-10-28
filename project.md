@@ -5,6 +5,7 @@
 - One public GitHub Pages dashboard for the latest run of every GitHub Actions workflow in each public \`mbligh\` repository.
 - Auto-discover repositories and workflows. Include inactive and rarely run workflows, not just the most recent runs of each repo.
 - Show success, failure, cancellation, running/queued and never-run states. Provide search, filters, time and direct GitHub workflow/run links.
+- Workflow names must open GitHub Actions workflow history (`/actions/workflows/<filename>`), not the YAML source-code page; run-number links open individual runs.
 - No client-side GitHub API requests, access tokens, database, or JavaScript build chain.
 - Do not publish private repository names or workflow metadata.
 - Keep GitHub REST API usage low; provide a path to webhook-driven updates.

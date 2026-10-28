@@ -12,7 +12,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 API = "https://api.github.com"
@@ -81,6 +81,18 @@ def slim_run(run):
     }
 
 
+def workflow_page_url(repo_url, workflow):
+    """Link to the workflow's Actions page, not its source-code blob."""
+    path = workflow.get("path") or ""
+    prefix = ".github/workflows/"
+    filename = path[len(prefix):] if path.startswith(prefix) else ""
+    if filename and "/" not in filename and filename.endswith((".yml", ".yaml")):
+        identifier = quote(filename, safe="")
+    else:
+        identifier = str(workflow["id"])
+    return repo_url.rstrip("/") + "/actions/workflows/" + identifier
+
+
 def collect(api, owner, exclude_repo="dashboard"):
     # This endpoint lists PUBLIC repositories even with a token. It cannot
     # accidentally publish private repositories visible to a credential.
@@ -121,7 +133,7 @@ def collect(api, owner, exclude_repo="dashboard"):
                 "name": workflow["name"],
                 "path": workflow.get("path"),
                 "state": workflow.get("state", "active"),
-                "url": workflow.get("html_url") or repo["html_url"] + "/actions",
+                "url": workflow_page_url(repo["html_url"], workflow),
                 "run": slim_run(run),
             })
         output.sort(key=lambda w: w["name"].casefold())

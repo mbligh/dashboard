@@ -23,7 +23,8 @@ class FakeAPI:
             ]
         if path == "/repos/mbligh/demo/actions/workflows":
             return {"workflows": [
-                {"id": 1, "name": "Build", "state": "active", "html_url": "https://github.com/mbligh/demo/actions/workflows/build.yml"},
+                {"id": 1, "name": "Build", "state": "active", "path": ".github/workflows/build.yml",
+                 "html_url": "https://github.com/mbligh/demo/blob/main/.github/workflows/build.yml"},
                 {"id": 2, "name": "Rare", "state": "disabled_manually", "html_url": "https://github.com/mbligh/demo/actions/workflows/rare.yml"},
                 {"id": 3, "name": "Never", "state": "active", "html_url": "https://github.com/mbligh/demo/actions/workflows/never.yml"},
             ]}
@@ -52,10 +53,26 @@ class CollectTest(unittest.TestCase):
         workflows = data["repositories"][0]["workflows"]
         self.assertEqual([w["name"] for w in workflows], ["Build", "Never", "Rare"])
         self.assertEqual(workflows[0]["run"]["id"], 10)
+        self.assertEqual(workflows[0]["url"], "https://github.com/mbligh/demo/actions/workflows/build.yml")
+        self.assertEqual(workflows[1]["url"], "https://github.com/mbligh/demo/actions/workflows/3")
+        self.assertEqual(workflows[2]["url"], "https://github.com/mbligh/demo/actions/workflows/2")
         self.assertIsNone(workflows[1]["run"])
         self.assertEqual(workflows[2]["run"]["id"], 3)
         self.assertEqual(workflows[2]["state"], "disabled_manually")
         self.assertEqual(len(api.calls), 5)
+
+    def test_workflow_page_url(self):
+        link = mod["workflow_page_url"]
+        repo = "https://github.com/mbligh/mapping"
+        self.assertEqual(
+            link(repo, {"id": 123, "path": ".github/workflows/extract-contours.yml",
+                        "html_url": repo + "/blob/main/.github/workflows/extract-contours.yml"}),
+            repo + "/actions/workflows/extract-contours.yml")
+        self.assertEqual(
+            link(repo, {"id": 123, "path": ".github/workflows/other.yaml"}),
+            repo + "/actions/workflows/other.yaml")
+        self.assertEqual(link(repo, {"id": 123, "path": None}),
+                         repo + "/actions/workflows/123")
 
     def test_empty_run(self):
         self.assertIsNone(mod["slim_run"](None))
