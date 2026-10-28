@@ -5,7 +5,7 @@
 - One public GitHub Pages dashboard for the latest run of every GitHub Actions workflow in each public \`mbligh\` repository.
 - Auto-discover repositories and workflows. Include inactive and rarely run workflows, not just the most recent runs of each repo.
 - Show success, failure, cancellation, running/queued and never-run states. Provide search, filters, time and direct GitHub workflow/run links.
-- Use full-width status backgrounds on workflow rows (green success, red failure, yellow other completed/never run, blue running or queued), in both light and dark themes. No status dots.
+- Use full-width status backgrounds based only on the last COMPLETED run (green success, red failure, yellow other/never completed). Show unfinished runs separately as clickable blue notices, supporting concurrent runs. No status dots.
 - Use a red/amber/green traffic-signal SVG favicon.
 - Workflow names must open GitHub Actions workflow history (`/actions/workflows/<filename>`), not the YAML source-code page; run-number links open individual runs.
 - No client-side GitHub API requests, access tokens, database, or JavaScript build chain.
@@ -21,6 +21,8 @@
 - No MongoDB Atlas: this is a read-only static snapshot, so a database would add moving parts without a useful benefit.
 
 ## Efficiency and future event ingestion
+
+The JSON includes the original latest `run` field plus `last_completed` and `active_runs`. The UI uses only `last_completed` for row color; active-run notices cannot replace the previous result. A webhook backend must retain this schema and reconcile concurrent/out-of-order events.
 
 There is **no GitHub API polling by browsers**; the publisher makes ~2 requests per active public repo every 15 minutes plus fallback lookups for seldom-run workflows. GitHub's \`workflow_run\` webhooks offer genuinely event-driven collection via a GitHub App, but a public webhook receiver (e.g. Cloudflare Worker) and authenticated dispatch are necessary because Pages cannot receive inbound events. No receiver is configured in this version. An event trigger is provided for later integration.
 
