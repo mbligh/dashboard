@@ -13,10 +13,15 @@ class SiteTest(unittest.TestCase):
         css = (SITE / "style.css").read_text()
         self.assertIn('el("div", "workflow " + kind)', script)
         self.assertIn('el("div", "badge", statusLabel(wf))', script)
+        self.assertIn('const run = completedRun(wf)', script)
+        self.assertIn('const active = activeRuns(wf)', script)
+        self.assertIn('"active-indicator"', script)
+        self.assertIn('.status-cell {', css)
+        self.assertIn('.active-indicator {', css)
         self.assertNotIn('el("span", "dot")', script)
         self.assertIn(".workflow { background: var(--row-bg); }", css)
         self.assertIn(".workflow:hover { background: var(--row-hover); }", css)
-        for status in ("success", "failure", "warning", "neutral", "never", "running"):
+        for status in ("success", "failure", "warning", "neutral", "never"):
             self.assertRegex(css, r"\.workflow\." + status + r"\b")
         self.assertNotIn(".dot {", css)
 
