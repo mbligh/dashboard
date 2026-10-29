@@ -86,3 +86,14 @@ test("webhook signatures are required before KV writes",async () => {
   assert.equal(accepted.status,202);
   assert.equal(writes,1);
 });
+
+
+test("a rerun attempt can be active while the previous attempt remains completed",() => {
+  const old=run(6,"completed","success","2026-10-28T11:00:00Z");
+  const current={...run(6,"in_progress",null,"2026-10-28T11:00:00Z"),attempt:2};
+  const data=mergeSnapshot(baseline,[event(old),event(current)]);
+  const workflow=data.repositories[0].workflows[0];
+  assert.equal(workflow.last_completed.id,6);
+  assert.equal(workflow.last_completed.attempt,1);
+  assert.deepEqual(workflow.active_runs.map(r=>r.attempt),[2]);
+});
