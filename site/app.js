@@ -119,6 +119,10 @@ function render() {
     const head = el("summary");
     const title = el("span", "repo-title");
     append(title, githubLink(repo.url, repo.name, "repo-link"));
+    const graphLink = el("a", "graph-link", "Trigger graph");
+    graphLink.href = "./repo.html?repo=" + encodeURIComponent(repo.name);
+    graphLink.addEventListener("click", event => event.stopPropagation());
+    const titleAndGraph = append(el("span", "repo-heading-content"), title, graphLink);
     const totals = el("span", "repo-totals");
     const failing = repo.workflows.filter((w) => category(w) === "failure").length;
     const running = repo.workflows.filter((w) => activeRuns(w).length).length;
@@ -126,7 +130,7 @@ function render() {
     if (running) totals.appendChild(pill(running + " running", "running"));
     if (repo.archived) totals.appendChild(pill("Archived", "neutral"));
     totals.appendChild(pill(repo.workflows.length + " workflows", "neutral"));
-    append(head, title, totals);
+    append(head, titleAndGraph, totals);
     details.appendChild(head);
     if (!repo.workflows.length) {
       details.appendChild(el("div", "empty", "No GitHub Actions workflows"));
