@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <meta name="description" content="Declared GitHub Actions workflow trigger graph for a repository">
+  <title>Workflow triggers · mbligh</title>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+  <link rel="stylesheet" href="./style.css">
+  <script src="./repo.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <header class="top graph-top">
+      <div>
+        <div class="eyebrow">MBLIGH / GITHUB ACTIONS</div>
+        <p class="graph-back"><a href="./">← All repositories</a></p>
+        <h1 id="repo-heading">Workflow trigger graph</h1>
+        <p class="muted">Arrows show declared events, chained workflows and reusable-workflow calls.</p>
+      </div>
+      <div class="header-actions">
+        <div id="graph-freshness" class="freshness" role="status">Loading snapshot…</div>
+        <button id="graph-refresh" type="button">Refresh</button>
+      </div>
+    </header>
+    <div id="graph-summary" class="graph-summary"></div>
+    <div class="graph-legend" aria-label="Graph legend">
+      <span><i class="legend-stroke event"></i> Event trigger</span>
+      <span><i class="legend-stroke chain"></i> workflow_run</span>
+      <span><i class="legend-stroke reuse"></i> Reusable call</span>
+      <span><i class="legend-stroke dispatch"></i> CLI dispatch</span>
+    </div>
+    <section id="graph-area" class="graph-area" aria-label="Workflow trigger diagram">
+      <p class="placeholder">Loading workflow declarations…</p>
+    </section>
+    <p class="graph-note">These are <strong>declared possible triggers</strong>, not observed run-to-run causality. Filters, conditional jobs and branch restrictions can prevent downstream execution. Reusable calls are in-job invocations; <code>needs:</code> between jobs is not shown. Indirect dispatches in scripts cannot always be detected.</p>
+    <h2 class="graph-section-title">Workflow details</h2>
+    <section id="graph-details" class="graph-details" aria-label="Workflow trigger details"></section>
+    <footer>
+      Trigger relationships are scanned from public workflow YAML during the daily baseline collection.
+      <a href="./">Dashboard</a>
+    </footer>
+  </div>
+</body>
+</html>
