@@ -42,3 +42,8 @@ python3 -m http.server --directory site 8000
 Visit http://localhost:8000/. Unauthenticated GitHub API requests have lower rate limits; supply \`GITHUB_TOKEN\` or \`DASHBOARD_READ_TOKEN\` in the environment when running locally if needed.
 
 See [project.md](project.md) for the architecture, limitations, and operating notes.
+
+
+## Optional live webhook backend
+
+A GitHub App + Cloudflare Worker + KV integration is prepared under [worker/](worker/README.md). It requires one-time Cloudflare/GitHub App configuration and does **not** require edits to individual workflow YAML files. The current Pages snapshot remains the default until `site/config.json` is set to the verified Worker's `/status.json` URL. Row color continues to represent the last completed run, with a separate blue notification for unfinished runs.
