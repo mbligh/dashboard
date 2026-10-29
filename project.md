@@ -43,3 +43,8 @@ A repository administrator must select **Settings → Pages → Build and deploy
 - Workflow run API's most-recent ordering is used; falls back to querying rarely-run workflow individually.
 - Static dashboard shows the latest run across all branches, not necessarily the most recent default-branch run.
 - GitHub App/webhook receiver not yet configured; \`repository_dispatch\` support is only a hook for that integration.
+
+
+## Event-driven Cloudflare KV backend (2026-10-29)
+
+Implemented in `worker/src/index.mjs` with `worker/wrangler.jsonc`; see `worker/README.md` for setup. GitHub App's `workflow_run` webhook goes to a Cloudflare Worker, verified using HMAC-SHA256. Each delivery becomes an immutable 72-hour KV entry with compact event metadata (one key per delivery). GET `/status.json` combines the GitHub Pages baseline snapshot with recent KV events, maintaining last-completed and independent active-run state even with out-of-order events. New public workflows/repositories are discovered from events; a scheduled baseline catches never-run and missed events. The UI reads `site/config.json` to choose Worker status URL once configured, otherwise safely defaults to the existing Pages snapshot. Cloudflare deployment and GitHub App creation require one-time user setup. No app private key or DB credentials required. Keep existing 15-minute Pages publishing until webhook integration is verified; reduce baseline frequency afterwards. Free KV list quota 1,000 per day, so browser refresh stays at two minutes initially.
