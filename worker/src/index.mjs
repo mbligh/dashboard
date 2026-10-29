@@ -1,9 +1,11 @@
 // GitHub App webhook -> Cloudflare KV -> dashboard JSON.
 const BASE = "https://mbligh.github.io/dashboard/status.json";
-const ORIGIN = "https://mbligh.github.io";
+// The status endpoint is public, read-only JSON. No browser credentials are used.
+// Wildcard CORS also permits the dashboard's custom domain without redeploying
+// each time its hostname changes. The signed webhook endpoint remains protected.
 function response(data, status = 200) {
   return Response.json(data, {status, headers: {
-    "Access-Control-Allow-Origin": ORIGIN, "Cache-Control": "no-store", "Vary": "Origin",
+    "Access-Control-Allow-Origin": "*", "Cache-Control": "no-store",
   }});
 }
 const timestamp = (r, completed = false) => Date.parse((completed && r.updated_at) || r.created_at || "") || 0;
