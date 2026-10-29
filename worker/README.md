@@ -7,57 +7,46 @@ Cloudflare until webhook delivery and the JSON endpoint have been verified.**
 Only public `mbligh` repositories appear in the dashboard. The receiving Worker
 ignores events from private repositories and from `mbligh/dashboard`.
 
-## 1. Create a Worker and KV namespace
+## 1. Create a Worker and KV namespace (no npm required)
 
-Use a Cloudflare account (Free is sufficient for light personal use) and a
-machine with Node.js and `npm`. Clone the repository, then:
+The **Cloudflare dashboard is the recommended deployment method**, especially
+on Debian 13: Debian supplies Node.js 20 but newer Wrangler CLI releases
+require Node.js 22 or later. The Worker runs on Cloudflare, so there is no
+need to install Node.js or Wrangler locally.
 
-```sh
-git clone https://github.com/mbligh/dashboard.git
-cd dashboard/worker
-npx wrangler@latest login
-npx wrangler@latest kv namespace create STATUS_EVENTS
-```
+1. Open https://dash.cloudflare.com/ and visit **Workers & Pages → KV**.
+2. Create a KV namespace named `dashboard-status` if one does not exist.
+3. Visit **Workers & Pages → Create → Worker**, choose a simple Hello World
+   starter and create the Worker named `mbligh-actions-status`.
+4. Open the Worker's **Edit Code** editor. Replace the starter code with the
+   entire contents of [src/index.mjs](src/index.mjs) and select **Deploy**.
+5. Open the Worker's **Bindings → Add binding → KV namespace**.
+   Set the binding name to **`STATUS_EVENTS`** and select
+   the `dashboard-status` KV namespace. Save/deploy the binding.
+6. Open your assigned `workers.dev` URL with `/health` appended.
+   It should return `{"ok":true}`.
 
-Copy the namespace ID that Wrangler prints into `worker/wrangler.jsonc`,
-replacing `REPLACE_WITH_KV_NAMESPACE_ID`. Keep binding name
-**`STATUS_EVENTS`**. The namespace ID is not a secret; commit this config so
-future deployments use the same namespace:
+A Cloudflare-owned `workers.dev` URL is sufficient. No custom domain,
+GitHub repository modification or command-line tools are necessary.
 
-```sh
-git add wrangler.jsonc
-git commit -m "Configure dashboard KV namespace"
-git push
-```
-
-Then deploy:
-
-```sh
-npx wrangler@latest deploy
-```
-
-Wrangler prints a public URL similar to
-`https://mbligh-actions-status.YOUR-SUBDOMAIN.workers.dev`.
-
-Check `https://mbligh-actions-status.YOUR-SUBDOMAIN.workers.dev/health`;
-it should return `{"ok":true}`.
+`worker/wrangler.jsonc` remains available for optional automated deployment;
+its namespace ID placeholder is **only for Wrangler** and does not have to
+be edited when using the browser interface.
 
 ## 2. Create the shared webhook secret
 
-Generate a random secret locally:
+Generate a random shared secret locally:
 
 ```sh
 openssl rand -hex 32
 ```
 
-Keep it private. In `dashboard/worker` run:
+In the Cloudflare dashboard open the Worker, then **Settings → Variables and
+Secrets → Add**. Enter `GITHUB_WEBHOOK_SECRET` as the name, choose
+**Secret** (not plaintext), paste the generated secret, and deploy the setting.
 
-```sh
-npx wrangler@latest secret put GITHUB_WEBHOOK_SECRET
-```
-
-Paste the random value when prompted. It will also be entered into the GitHub
-App's *Webhook secret* field. **Never commit it or share it in ChatGPT.**
+Enter the **same** secret in the GitHub App's *Webhook secret* field in step 3.
+Never commit the value, put it in a URL, or paste it into a chat.
 
 ## 3. Create and install the GitHub App
 
@@ -141,16 +130,13 @@ GitHub repository webhook configuration, or repository write permissions.
 
 ## Diagnostics
 
-```sh
-npx wrangler@latest tail
-```
+Use **Workers & Pages → your Worker → Observability / Logs** in the
+Cloudflare dashboard to inspect requests and failures. Wrangler is
+not required.
 
 Check the GitHub App's Recent deliveries, the Worker's HTTP response, and
 `/status.json`. Do not expose the webhook secret or full signed payloads in
-logs. Worker source is under `worker/src/index.mjs`; tests run with:
-
-```sh
-node --test worker/test/*.test.mjs
-```
+logs. Worker source is under `worker/src/index.mjs`; tests run in
+the GitHub Actions publication workflow. Local Node.js is not required.
 
 from the repository root.
