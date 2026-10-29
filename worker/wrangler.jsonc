@@ -1,0 +1,12 @@
+{
+  "name": "mbligh-actions-status",
+  "main": "src/index.mjs",
+  "compatibility_date": "2026-10-28",
+  "workers_dev": true,
+  "kv_namespaces": [
+    {
+      "binding": "STATUS_EVENTS",
+      "id": "REPLACE_WITH_KV_NAMESPACE_ID"
+    }
+  ]
+}
