@@ -1,0 +1,48 @@
+name: Verify Cloudflare webhook status
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/check-webhook.yml
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check public Cloudflare Worker and event ingestion
+        env:
+          WORKER_STATUS_URL: https://mbligh-actions-status.mbligh.workers.dev/status.json
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from urllib.request import Request, urlopen
+
+          req = Request(os.environ["WORKER_STATUS_URL"], headers={
+              "User-Agent": "mbligh-dashboard-webhook-check",
+              "Accept": "application/json",
+          })
+          with urlopen(req, timeout=30) as response:
+              status = response.status
+              data = json.load(response)
+
+          print("HTTP:", status)
+          print("Status source:", data.get("status_source"))
+          print("Baseline timestamp:", data.get("base_generated_at"))
+          print("Last webhook:", data.get("last_event_at"))
+          wf = next((wf for repo in data.get("repositories", [])
+                     if repo["name"] == "calendar"
+                     for wf in repo["workflows"]
+                     if wf["name"] == "Update NJ hunter paces"), None)
+          if wf:
+              print("Hunter paces latest completed:", json.dumps(wf.get("last_completed")))
+              print("Hunter paces active runs:", json.dumps(wf.get("active_runs")))
+          if data.get("status_source") != "webhook-kv":
+              raise SystemExit("Unexpected response: Worker is not serving KV-backed status")
+          if not data.get("last_event_at"):
+              print("No webhook events received yet; verify GitHub App event delivery.")
+          PY
