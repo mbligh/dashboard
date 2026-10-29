@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+"""Annotate public workflow snapshots with declared trigger relationships.
+
+Parses the YAML from the repository's default branch, not GitHub run history.
+Only explicitly configured triggers and literal local calls are represented.
+Uses PyYAML BaseLoader (all scalars are strings, including YAML key 'on').
+"""
+import argparse
+import base64
+import json
+import os
+import re
+import runpy
+import sys
+from pathlib import Path
+from urllib.parse import quote
+
+import yaml
+
+collector = runpy.run_path(str(Path(__file__).resolve().with_name("collect")))
+GitHubAPI = collector["GitHubAPI"]
+
+LOCAL_WORKFLOW = re.compile(r"^\.github/workflows/[^/]+\.ya?ml$")
+RUN_CMD = re.compile(r'(?:^|[\s;&|])gh\s+workflow\s+run\s+["\']?([A-Za-z0-9_.-]+\.ya?ml)\b')
+YAML_FILE = re.compile(r"^[A-Za-z0-9_.-]+\.ya?ml$")
+
+
+def items(value):
+    if value is None or value == "":
+        return []
+    if isinstance(value, list):
+        return [str(i) for i in value if i is not None and i != ""]
+    return [str(value)]
+
+
+def triggers_from(source):
+    """Return explicit GitHub event declarations with relevant matching rules."""
+    events = source.get("on", {}) if isinstance(source, dict) else {}
+    if isinstance(events, str):
+        events = [events]
+    if isinstance(events, list):
+        events = {str(e): "" for e in events}
+    if not isinstance(events, dict):
+        return []
+
+    triggers = []
+    for event, config in events.items():
+        if not isinstance(event, str) or not event:
+            continue
+        conditions = config if isinstance(config, dict) else {}
+        data = {"event": event}
+        for option in ("workflows", "types", "branches", "branches-ignore", "paths", "paths-ignore"):
+            if option in conditions:
+                data[option.replace("-", "_")] = items(conditions[option])
+        if event == "schedule" and isinstance(config, list):
+            data["cron"] = [x["cron"] for x in config if isinstance(x, dict) and "cron" in x]
+        triggers.append(data)
+    return triggers
+
+
+def referenced_workflows(source):
+    """Explicit local reusable-workflow calls and literal gh CLI dispatches."""
+    calls, dispatches = set(), set()
+    jobs = source.get("jobs", {}) if isinstance(source, dict) else {}
+    if not isinstance(jobs, dict):
+        return [], []
+    for job in jobs.values():
+        if not isinstance(job, dict):
+            continue
+        uses = job.get("uses")
+        if isinstance(uses, str) and uses.startswith("./"):
+            path = uses[2:]
+            if LOCAL_WORKFLOW.fullmatch(path):
+                calls.add(path.rsplit("/", 1)[-1])
+        steps = job.get("steps", [])
+        if not isinstance(steps, list):
+            continue
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            run = step.get("run", "")
+            if isinstance(run, str):
+                for name in RUN_CMD.findall(run):
+                    if YAML_FILE.fullmatch(name):
+                        dispatches.add(name)
+    return sorted(calls), sorted(dispatches)
+
+
+def analyze_source(text):
+    data = yaml.load(text, Loader=yaml.BaseLoader)
+    if not isinstance(data, dict):
+        raise ValueError("Workflow YAML is not a mapping")
+    calls, dispatches = referenced_workflows(data)
+    return {"triggers": triggers_from(data), "calls": calls, "dispatches": dispatches}
+
+
+def annotate(snapshot, api):
+    owner = snapshot["owner"]
+    for repo in snapshot["repositories"]:
+        for workflow in repo["workflows"]:
+            path = workflow.get("path") or ""
+            workflow["triggers"] = []
+            workflow["calls"] = []
+            workflow["dispatches"] = []
+            workflow.pop("analysis_error", None)
+            if not LOCAL_WORKFLOW.fullmatch(path):
+                workflow["analysis_error"] = "Not a repository YAML workflow"
+                continue
+            endpoint = "/repos/%s/%s/contents/%s" % (
+                quote(owner, safe=""), quote(repo["name"], safe=""), quote(path, safe="/"))
+            try:
+                content = api.get(endpoint)
+                if content.get("encoding") != "base64":
+                    raise ValueError("Unexpected content encoding")
+                raw = base64.b64decode(content["content"], validate=False).decode("utf-8")
+                workflow.update(analyze_source(raw))
+            except Exception as exc:
+                # Never fabricate edges when a source cannot be parsed or fetched.
+                workflow["analysis_error"] = str(exc)[:250]
+                print("%s/%s: %s" % (repo["name"], path, exc), file=sys.stderr)
+    return snapshot
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--snapshot", default="site/status.json")
+    args = parser.parse_args()
+    target = Path(args.snapshot)
+    data = json.loads(target.read_text(encoding="utf-8"))
+    token = os.getenv("DASHBOARD_READ_TOKEN") or os.getenv("GITHUB_TOKEN")
+    annotate(data, GitHubAPI(token))
+    temp = target.with_suffix(".tmp")
+    temp.write_text(json.dumps(data, separators=(",", ":"), ensure_ascii=False) + "\n", encoding="utf-8")
+    temp.replace(target)
+    print("Annotated workflow triggers in %s" % target, file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main()
