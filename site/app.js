@@ -3,6 +3,7 @@
 const byId = (id) => document.getElementById(id);
 let snapshot = null;
 let lastError = null;
+let fallbackNotice = null;
 let statusUrl = "./status.json";
 const state = { query: "", filter: "all", showEmpty: false };
 
@@ -179,20 +180,32 @@ function freshness() {
   const node = byId("freshness");
   node.textContent = (snapshot.status_source === "webhook-kv" ? "Live · checked " : "Snapshot ") +
     relativeTime(snapshot.generated_at) +
-    (lastError ? " · Refresh failed" : "");
+    (lastError ? " · Refresh failed" : fallbackNotice ? " · Pages fallback" : "");
   node.title = "Generated " + new Date(snapshot.generated_at).toLocaleString() +
-    (lastError ? "; " + lastError : "");
-  node.classList.toggle("stale", age > 45 || !!lastError);
+    (lastError ? "; " + lastError : fallbackNotice ? "; " + fallbackNotice : "");
+  node.classList.toggle("stale", age > 45 || !!lastError || !!fallbackNotice);
   node.classList.toggle("error", !!lastError);
+}
+async function loadStatus(url) {
+  const response = await fetch(url, {cache:"no-store"});
+  if (!response.ok) throw new Error("HTTP " + response.status + " loading " + url);
+  const data = await response.json();
+  if (!Array.isArray(data.repositories) || !data.generated_at) throw new Error("Invalid snapshot from " + url);
+  return data;
 }
 async function refresh() {
   const button = byId("refresh");
   button.disabled = true;
   try {
-    const response = await fetch(statusUrl, {cache:"no-store"});
-    if (!response.ok) throw new Error("HTTP " + response.status + " loading snapshot");
-    const data = await response.json();
-    if (!Array.isArray(data.repositories) || !data.generated_at) throw new Error("Invalid snapshot");
+    let data;
+    fallbackNotice = null;
+    try {
+      data = await loadStatus(statusUrl);
+    } catch (error) {
+      if (statusUrl === "./status.json") throw error;
+      fallbackNotice = "Live Worker unavailable: " + error.message;
+      data = await loadStatus("./status.json");
+    }
     snapshot = data;
     lastError = null;
     render();

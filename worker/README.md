@@ -80,18 +80,14 @@ Open `https://mbligh-actions-status.YOUR-SUBDOMAIN.workers.dev/status.json`.
 It should return JSON with `repositories`, `generated_at`,
 `base_generated_at`, and `status_source: "webhook-kv"`.
 
-After checking a real workflow event has been received, edit
-`site/config.json` in the repository to:
+The public Worker URL has been configured in `site/config.json` as
+`https://mbligh-actions-status.mbligh.workers.dev/status.json`.
+The dashboard attempts to load it first, then automatically falls back to
+the original Pages JSON if the Worker is unreachable or returns invalid data.
+The header displays **Pages fallback** when the live endpoint is unavailable.
 
-```json
-{
-  "status_url": "https://mbligh-actions-status.YOUR-SUBDOMAIN.workers.dev/status.json"
-}
-```
-
-Commit the change. GitHub Actions republishes the Pages HTML; the browser now
-reads the Worker JSON. If the Worker is down, revert `status_url` to
-`null` and republish. The original Pages snapshot remains available.
+GitHub webhook reception is not verified merely by successful Pages deployment:
+use GitHub App Recent Deliveries to confirm `workflow_run` events return 202.
 
 ## 5. Reduce collection frequency *after* proving events work
 
