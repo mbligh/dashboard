@@ -29,6 +29,21 @@ class SiteTest(unittest.TestCase):
             self.assertRegex(css, r"\.workflow\." + status + r"\b")
         self.assertNotIn(".dot {", css)
 
+    def test_repo_trigger_graph_is_linked(self):
+        index_script = (SITE / "app.js").read_text()
+        graph_html = (SITE / "repo.html").read_text()
+        graph_script = (SITE / "repo.js").read_text()
+        self.assertIn('graphLink.href = "./repo.html?repo="', index_script)
+        self.assertIn('src="./repo.js"', graph_html)
+        self.assertIn('id="graph-area"', graph_html)
+        self.assertIn('id="graph-details"', graph_html)
+        self.assertIn('"workflow_run"', graph_script)
+        self.assertIn('"reuse"', graph_script)
+        self.assertIn('"dispatch"', graph_script)
+        self.assertIn("buildSVG", graph_script)
+        self.assertIn("connections(repo)", graph_script)
+        self.assertIn('data=await load(LOCAL_STATUS)', graph_script)
+
     def test_favicon_is_linked_svg_with_three_colors(self):
         html = (SITE / "index.html").read_text()
         self.assertIn('rel="icon" type="image/svg+xml" href="./favicon.svg"', html)
