@@ -61,11 +61,13 @@ export function mergeSnapshot(base, events) {
     if (!runs) {
       runs = new Map();
       for (const r of [wf.run,wf.last_completed,...(wf.active_runs || [])].filter(Boolean)) {
-        runs.set(r.id,prefer(runs.get(r.id),r));
+        const key = r.id + ":" + (r.attempt || 1);
+        runs.set(key,prefer(runs.get(key),r));
       }
       touched.set(wf,runs);
     }
-    runs.set(e.run.id,prefer(runs.get(e.run.id),e.run));
+    const eventKey = e.run.id + ":" + (e.run.attempt || 1);
+    runs.set(eventKey,prefer(runs.get(eventKey),e.run));
   }
   for (const [wf,runs] of touched) {
     const all = [...runs.values()];
