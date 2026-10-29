@@ -47,3 +47,32 @@ See [project.md](project.md) for the architecture, limitations, and operating no
 ## Optional live webhook backend
 
 GitHub App `mbligh-dashboard` and a Cloudflare Worker + KV integration are active. The Worker endpoint is configured in `site/config.json` with automatic Pages fallback. An end-to-end test confirmed a new `calendar` workflow run appeared via KV before the baseline was regenerated. The Pages baseline now reconciles daily at 05:17 UTC, as well as on repository push/manual dispatch. No individual workflow YAML modifications are required. See [worker/README.md](worker/README.md) for setup and diagnostics.
+
+
+## Repository trigger graphs
+
+Each repository heading has a **Trigger graph** link, e.g.
+[`mapping`](https://dashboard.mbligh.org/repo.html?repo=mapping).
+These are dynamically rendered static subpages (`site/repo.html?repo=NAME`) and
+work on both the GitHub Pages project URL and the custom domain.
+
+The daily collector now fetches each public workflow's source YAML and
+annotates the published snapshot with declared `on:` events, including
+`workflow_run.workflows` relationships (directed arrows between workflows).
+The graph also distinguishes `jobs.<name>.uses: ./.github/workflows/...`
+reusable-workflow calls (dashed purple) and literal `gh workflow run FILE`
+dispatch commands (dashed amber). Push, schedule, release, manual,
+repository_dispatch, etc. appear as external source nodes. Workflow names
+link to their GitHub Actions pages, with a textual trigger breakdown underneath.
+
+These graphs show **configured possible triggers**, not actual causal
+connections between particular runs. Workflow-level conditions and filters
+can suppress execution, and dispatches hidden in scripts, APIs, or dynamically
+computed workflow filenames cannot always be inferred. Internal job
+`needs:` edges are intentionally excluded. Unknown/unsupported workflow
+source files are visibly marked, not silently represented as untriggered.
+
+The metadata is refreshed on each baseline publication (daily, on dashboard
+pushes, or manual refresh); status changes still arrive through the
+GitHub App and Cloudflare KV without rebuilding Pages. The YAML analysis
+uses Python PyYAML rather than adding JavaScript frontend dependencies.
