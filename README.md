@@ -13,7 +13,7 @@ Dashboard showing the latest GitHub Actions run **per workflow** for all public 
 
 Row color reflects the latest **completed** run only. Newer or concurrent running/queued runs appear as separate clickable blue notices without replacing the completed result. The running summary counts workflows with active runs separately from completed outcomes.
 
-The site refreshes its static JSON snapshot every two minutes while the tab is visible; it **never queries the GitHub API from the browser**. The collection workflow refreshes the snapshot every 15 minutes, on changes to this repository, or manually.
+The site refreshes its static JSON snapshot every two minutes while the tab is visible; it **never queries the GitHub API from the browser**. The collection workflow refreshes the baseline snapshot daily, on changes to this repository, or manually. The live dashboard normally gets changes through GitHub App webhooks and Cloudflare KV.
 
 The publisher discovers the owner's public repositories automatically (including newly created ones). For each repository, it lists the workflows and fetches the most recent 100 runs in one request. Any workflow not represented in those runs gets a one-run fallback lookup. This catches rarely executed workflows and disabled workflows; no per-workflow polling is done for the usual case.
 
@@ -46,4 +46,4 @@ See [project.md](project.md) for the architecture, limitations, and operating no
 
 ## Optional live webhook backend
 
-A GitHub App + Cloudflare Worker + KV integration is prepared under [worker/](worker/README.md). It requires one-time Cloudflare/GitHub App configuration and does **not** require edits to individual workflow YAML files. The current Pages snapshot remains the default until `site/config.json` is set to the verified Worker's `/status.json` URL. Row color continues to represent the last completed run, with a separate blue notification for unfinished runs.
+GitHub App `mbligh-dashboard` and a Cloudflare Worker + KV integration are active. The Worker endpoint is configured in `site/config.json` with automatic Pages fallback. An end-to-end test confirmed a new `calendar` workflow run appeared via KV before the baseline was regenerated. The Pages baseline now reconciles daily at 05:17 UTC, as well as on repository push/manual dispatch. No individual workflow YAML modifications are required. See [worker/README.md](worker/README.md) for setup and diagnostics.

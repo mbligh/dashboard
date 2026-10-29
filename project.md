@@ -17,14 +17,14 @@
 
 - \`scripts/collect\`: Python standard-library collector using the public \`/users/mbligh/repos\` endpoint; exclude dashboard itself to avoid misreporting its self-update. One workflow list and one recent-runs query per repository; fallback GET for each workflow absent from the first 100 runs. All calls happen in GitHub Actions with an optional token; failures stop publication rather than displaying falsely successful or missing data.
 - \`site/index.html\`, \`site/style.css\`, \`site/app.js\`: dependency-free responsive dashboard fetching only \`status.json\` from Pages. The browser reloads the file every two minutes only while visible, and on tab focus or manual refresh. An age indicator warns when the snapshot is stale (>45 minutes).
-- \`.github/workflows/publish.yml\`: unit tests, collector, GitHub Pages artifact and deployment. Triggered on push, every 15 minutes (offset from the hour), manual dispatch and optional \`repository_dispatch: refresh-dashboard\`.
+- \`.github/workflows/publish.yml\`: unit tests, collector, GitHub Pages artifact and deployment. Triggered on push, daily at 05:17 UTC, manual dispatch and optional \`repository_dispatch: refresh-dashboard\`.
 - No MongoDB Atlas: this is a read-only static snapshot, so a database would add moving parts without a useful benefit.
 
 ## Efficiency and future event ingestion
 
 The JSON includes the original latest `run` field plus `last_completed` and `active_runs`. The UI uses only `last_completed` for row color; active-run notices cannot replace the previous result. A webhook backend must retain this schema and reconcile concurrent/out-of-order events.
 
-There is **no GitHub API polling by browsers**; the publisher makes ~2 requests per active public repo every 15 minutes plus fallback lookups for seldom-run workflows. GitHub's \`workflow_run\` webhooks offer genuinely event-driven collection via a GitHub App, but a public webhook receiver (e.g. Cloudflare Worker) and authenticated dispatch are necessary because Pages cannot receive inbound events. No receiver is configured in this version. An event trigger is provided for later integration.
+There is **no GitHub API polling by browsers**; the publisher makes ~2 requests per active public repo once daily plus fallback lookups for seldom-run workflows. GitHub's \`workflow_run\` webhooks offer genuinely event-driven collection via a GitHub App, but a public webhook receiver (e.g. Cloudflare Worker) and authenticated dispatch are necessary because Pages cannot receive inbound events. No receiver is configured in this version. An event trigger is provided for later integration.
 
 ## Security
 
@@ -36,15 +36,15 @@ A repository administrator must select **Settings → Pages → Build and deploy
 
 ## Limitations
 
-- Snapshot freshness bounded by a roughly 15-minute schedule, plus GitHub Actions scheduling and deployment delay.
+- Snapshot freshness bounded by a daily fallback schedule, plus GitHub Actions scheduling and deployment delay.
 - GitHub Actions schedules may be delayed or skipped under heavy GitHub load.
 - The dashboard repository's own publishing job is excluded because its final result is not knowable while generating its own snapshot.
 - Repository workflow names and run results are public; private repositories are intentionally omitted.
 - Workflow run API's most-recent ordering is used; falls back to querying rarely-run workflow individually.
 - Static dashboard shows the latest run across all branches, not necessarily the most recent default-branch run.
-- GitHub App/webhook receiver not yet configured; \`repository_dispatch\` support is only a hook for that integration.
+- GitHub App and Cloudflare Worker + KV are operational. `repository_dispatch` remains an optional compatibility hook.
 
 
 ## Event-driven Cloudflare KV backend (2026-10-29)
 
-Implemented in `worker/src/index.mjs` with `worker/wrangler.jsonc`; see `worker/README.md` for setup. GitHub App's `workflow_run` webhook goes to a Cloudflare Worker, verified using HMAC-SHA256. Each delivery becomes an immutable 72-hour KV entry with compact event metadata (one key per delivery). GET `/status.json` combines the GitHub Pages baseline snapshot with recent KV events, maintaining last-completed and independent active-run state even with out-of-order events. New public workflows/repositories are discovered from events; a scheduled baseline catches never-run and missed events. The UI reads `site/config.json` to choose Worker status URL once configured, otherwise safely defaults to the existing Pages snapshot. Cloudflare deployment and GitHub App creation require one-time user setup. No app private key or DB credentials required. Keep existing 15-minute Pages publishing until webhook integration is verified; reduce baseline frequency afterwards. Free KV list quota 1,000 per day, so browser refresh stays at two minutes initially.
+Implemented in `worker/src/index.mjs` with `worker/wrangler.jsonc`; see `worker/README.md` for setup. GitHub App's `workflow_run` webhook goes to a Cloudflare Worker, verified using HMAC-SHA256. Each delivery becomes an immutable 72-hour KV entry with compact event metadata (one key per delivery). GET `/status.json` combines the GitHub Pages baseline snapshot with recent KV events, maintaining last-completed and independent active-run state even with out-of-order events. New public workflows/repositories are discovered from events; a scheduled baseline catches never-run and missed events. The UI reads `site/config.json` to choose Worker status URL once configured, otherwise safely defaults to the existing Pages snapshot. Cloudflare deployment and GitHub App creation require one-time user setup. No app private key or DB credentials required. End-to-end webhook delivery was verified using calendar's Hunter paces run #21 on 2026-10-29. The collector schedule was reduced to daily at 05:17 UTC. Free KV list quota 1,000 per day, so browser refresh stays at two minutes initially.

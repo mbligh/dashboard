@@ -91,11 +91,12 @@ use GitHub App Recent Deliveries to confirm `workflow_run` events return 202.
 
 ## 5. Reduce collection frequency *after* proving events work
 
-Initially the original `.github/workflows/publish.yml` schedule is deliberately
-unchanged (every 15 minutes). It provides an inventory baseline and fallback.
-Once live event delivery has been demonstrated, reduce that schedule to once
-every few hours or once per day. That reconciles missed webhooks and workflows
-that have never run. Do not remove the baseline job entirely.
+The `.github/workflows/publish.yml` schedule provides a daily inventory
+baseline and fallback (also runs on dashboard repo pushes or manual dispatch).
+Live event delivery has been confirmed: calendar's Hunter paces run #21
+appeared in the Worker status response before the Pages baseline changed.
+The schedule has been reduced to once daily at 05:17 UTC. This reconciles
+missed webhooks and discovers workflows that have never run.
 
 ## Status semantics
 
@@ -135,4 +136,3 @@ Check the GitHub App's Recent deliveries, the Worker's HTTP response, and
 logs. Worker source is under `worker/src/index.mjs`; tests run in
 the GitHub Actions publication workflow. Local Node.js is not required.
 
-from the repository root.
