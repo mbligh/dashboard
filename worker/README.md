@@ -89,6 +89,27 @@ The header displays **Pages fallback** when the live endpoint is unavailable.
 GitHub webhook reception is not verified merely by successful Pages deployment:
 use GitHub App Recent Deliveries to confirm `workflow_run` events return 202.
 
+## Custom GitHub Pages domain
+
+For `dashboard.mbligh.org`, configure
+[GitHub repository Pages settings](https://github.com/mbligh/dashboard/settings/pages)
+→ **Custom domain** as `dashboard.mbligh.org`.
+The DNS CNAME for `dashboard` should point to `mbligh.github.io`
+(no path suffix); after GitHub provisions its TLS certificate, turn on
+**Enforce HTTPS**. Pages is deployed through GitHub Actions, so no CNAME file
+is needed in this repository.
+
+The public Worker status endpoint must allow browser access from the
+custom domain (CORS). The source in `src/index.mjs` permits all origins
+(`Access-Control-Allow-Origin: *`) because the status API is unauthenticated,
+public JSON. This does **not** bypass HMAC validation on the webhook POST.
+**If the Worker was manually installed via Cloudflare's Edit Code UI, deploy
+the latest `src/index.mjs` there as well; GitHub source commits do not
+automatically update the Worker.**
+
+The Worker baseline still reads GitHub's original Pages URL, which GitHub
+redirects to the configured custom domain.
+
 ## 5. Reduce collection frequency *after* proving events work
 
 The `.github/workflows/publish.yml` schedule provides a daily inventory
