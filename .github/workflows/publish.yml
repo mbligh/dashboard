@@ -27,6 +27,8 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - name: Install YAML parser
+        run: python3 -m pip install --disable-pip-version-check "PyYAML>=6,<7"
       - name: Test collector
         run: python3 -m unittest discover -s tests -v
       - name: Test Cloudflare webhook Worker
@@ -36,6 +38,11 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           DASHBOARD_READ_TOKEN: ${{ secrets.DASHBOARD_READ_TOKEN }}
         run: python3 scripts/collect --owner mbligh --output site/status.json
+      - name: Extract workflow trigger relationships
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DASHBOARD_READ_TOKEN: ${{ secrets.DASHBOARD_READ_TOKEN }}
+        run: python3 scripts/graph --snapshot site/status.json
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
       - name: Upload site
