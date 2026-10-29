@@ -3,6 +3,7 @@
 const byId = (id) => document.getElementById(id);
 let snapshot = null;
 let lastError = null;
+let statusUrl = "./status.json";
 const state = { query: "", filter: "all", showEmpty: false };
 
 function el(tag, cls, value) {
@@ -176,7 +177,8 @@ function freshness() {
   }
   const age = (Date.now() - Date.parse(snapshot.generated_at)) / 60000;
   const node = byId("freshness");
-  node.textContent = "Snapshot " + relativeTime(snapshot.generated_at) +
+  node.textContent = (snapshot.status_source === "webhook-kv" ? "Live · checked " : "Snapshot ") +
+    relativeTime(snapshot.generated_at) +
     (lastError ? " · Refresh failed" : "");
   node.title = "Generated " + new Date(snapshot.generated_at).toLocaleString() +
     (lastError ? "; " + lastError : "");
@@ -187,7 +189,7 @@ async function refresh() {
   const button = byId("refresh");
   button.disabled = true;
   try {
-    const response = await fetch("./status.json", {cache:"no-store"});
+    const response = await fetch(statusUrl, {cache:"no-store"});
     if (!response.ok) throw new Error("HTTP " + response.status + " loading snapshot");
     const data = await response.json();
     if (!Array.isArray(data.repositories) || !data.generated_at) throw new Error("Invalid snapshot");
@@ -209,4 +211,22 @@ byId("refresh").addEventListener("click", refresh);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
 setInterval(() => { if (!document.hidden) refresh(); }, 120000);
 setInterval(freshness, 30000);
-refresh();
+async function initializeStatusSource() {
+  try {
+    const response = await fetch("./config.json", {cache:"no-store"});
+    if (response.ok) {
+      const config = await response.json();
+      if (typeof config.status_url === "string") {
+        const target = new URL(config.status_url);
+        if (target.protocol === "https:" && target.pathname === "/status.json" &&
+            (target.hostname.endsWith(".workers.dev") || target.hostname === "dashboard.mbligh.org")) {
+          statusUrl = target.href;
+        }
+      }
+    }
+  } catch (error) {
+    console.warn("Using GitHub Pages snapshot:", error);
+  }
+  refresh();
+}
+initializeStatusSource();
