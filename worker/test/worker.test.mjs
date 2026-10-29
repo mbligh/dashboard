@@ -97,3 +97,13 @@ test("a rerun attempt can be active while the previous attempt remains completed
   assert.equal(workflow.last_completed.attempt,1);
   assert.deepEqual(workflow.active_runs.map(r=>r.attempt),[2]);
 });
+
+
+test("public endpoints allow requests from custom-domain dashboard",async () => {
+  const result=await worker.fetch(
+    new Request("https://example.workers.dev/health", {
+      headers:{"Origin":"https://dashboard.mbligh.org"}
+    }),{});
+  assert.equal(result.status,200);
+  assert.equal(result.headers.get("Access-Control-Allow-Origin"),"*");
+});
