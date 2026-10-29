@@ -48,3 +48,25 @@ A repository administrator must select **Settings → Pages → Build and deploy
 ## Event-driven Cloudflare KV backend (2026-10-29)
 
 Implemented in `worker/src/index.mjs` with `worker/wrangler.jsonc`; see `worker/README.md` for setup. GitHub App's `workflow_run` webhook goes to a Cloudflare Worker, verified using HMAC-SHA256. Each delivery becomes an immutable 72-hour KV entry with compact event metadata (one key per delivery). GET `/status.json` combines the GitHub Pages baseline snapshot with recent KV events, maintaining last-completed and independent active-run state even with out-of-order events. New public workflows/repositories are discovered from events; a scheduled baseline catches never-run and missed events. The UI reads `site/config.json` to choose Worker status URL once configured, otherwise safely defaults to the existing Pages snapshot. Cloudflare deployment and GitHub App creation require one-time user setup. No app private key or DB credentials required. End-to-end webhook delivery was verified using calendar's Hunter paces run #21 on 2026-10-29. The collector schedule was reduced to daily at 05:17 UTC. Free KV list quota 1,000 per day, so browser refresh stays at two minutes initially.
+
+
+## Per-repository workflow trigger graphs
+
+`site/repo.html?repo=NAME` and `site/repo.js` render native SVG
+trigger graphs for public repositories. Each row on the main dashboard
+links to its graph. `scripts/graph` fetches repository workflow YAML
+from the default branch during baseline publication and extracts `on:`
+trigger types, `workflow_run.workflows` cross-workflow chains, local reusable
+workflow `jobs.<id>.uses` calls, and literal `gh workflow run FILE` commands.
+The data is stored in each workflow's `triggers`, `calls`,
+`dispatches` fields in `site/status.json`.
+
+Different arrows distinguish external event triggers, workflow_run
+chains, reusable calls, and CLI dispatches. These are static,
+declarative possible trigger relationships, not proof of causality.
+Internal job-level `needs:` is out of scope. Dynamic dispatches, actions
+hidden in nested scripts or other repositories, and events conditional
+on scripts are not inferred. Missing/unparseable sources receive
+`analysis_error` so the graph can explicitly flag incomplete data.
+PyYAML BaseLoader avoids the YAML 1.1 boolean treatment of the key `on`.
+The graph refreshes with the daily baseline, while run statuses remain live.
