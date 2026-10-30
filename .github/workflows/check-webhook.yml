@@ -41,6 +41,15 @@ jobs:
           if wf:
               print("Hunter paces latest completed:", json.dumps(wf.get("last_completed")))
               print("Hunter paces active runs:", json.dumps(wf.get("active_runs")))
+          trail = next((wf for repo in data.get("repositories", [])
+                       if repo["name"] == "trail2"
+                       for wf in repo["workflows"]
+                       if wf["id"] == 398253011), None)
+          print("Trail2 smoke workflow:", json.dumps({
+              "name": trail.get("name"),
+              "completed": trail.get("last_completed"),
+              "active": trail.get("active_runs"),
+          } if trail else None))
           if data.get("status_source") != "webhook-kv":
               raise SystemExit("Unexpected response: Worker is not serving KV-backed status")
           if not data.get("last_event_at"):
