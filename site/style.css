@@ -182,3 +182,16 @@ footer a { text-decoration: underline; text-underline-offset: 3px; }
   .graph-node.never rect { fill:#ffe5a0; stroke:#ad7923; }
   .graph-node:not(.source) text { fill:#203247; }
 }
+
+/* Explicitly identify stale fallback data instead of presenting old successes as live. */
+.source-warning {
+  margin: 0 0 18px;
+  padding: 12px 16px;
+  border: 1px solid var(--warning);
+  border-radius: 8px;
+  background: var(--surface2);
+  color: var(--fg);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.source-warning[hidden] { display:none; }
