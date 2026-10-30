@@ -7,6 +7,9 @@ const byId = id => document.getElementById(id);
 const repoName = new URLSearchParams(location.search).get("repo");
 const safeRepo = typeof repoName === "string" && /^[A-Za-z0-9_.-]+$/.test(repoName);
 let statusUrl = LOCAL_STATUS;
+let shownRepo = null;
+let shownSnapshot = null;
+let shownFallback = false;
 
 function element(name, className, value) {
   const node = document.createElement(name);
@@ -56,7 +59,7 @@ function fileName(path) {
   const m = /^\.github\/workflows\/([^/]+\.ya?ml)$/.exec(path || "");
   return m ? m[1] : null;
 }
-function connections(repo) {
+function connections(repo, includeExternalEvents = false) {
   const nodes = [], edges = [];
   const byWorkflow = new Map(), byName = new Map(), byFilename = new Map(), sources = new Map();
   const known = repo.workflows || [];
@@ -102,7 +105,7 @@ function connections(repo) {
               target,"unresolved",detail || "Source workflow not uniquely matched");
           }
         }
-      } else if (event !== "workflow_call") {
+      } else if (includeExternalEvents && event !== "workflow_call") {
         let label = eventName(event);
         let key = event;
         if (event === "repository_dispatch" && (trigger.types || []).length) {
@@ -122,7 +125,7 @@ function connections(repo) {
     }
   }
   for (const wf of known) {
-    if ((wf.triggers || []).some(t => t.event === "workflow_call")) {
+    if (includeExternalEvents && (wf.triggers || []).some(t => t.event === "workflow_call")) {
       const node = byWorkflow.get(wf.id);
       if (!edges.some(e => e.to === node && e.kind === "reuse"))
         addEdge(eventNode("external_call","External reusable call"),node,"event","workflow_call");
@@ -286,11 +289,14 @@ function render(repo, snapshot, isFallback) {
   byId("repo-heading").textContent=repo.name+" · Workflow triggers";
   document.title=repo.name+" workflow triggers · mbligh";
   const analysisCount=repo.workflows.filter(w=>Array.isArray(w.triggers)).length;
-  const data=connections(repo);
-  const sources=data.nodes.filter(n=>n.kind==="event").length;
+  const includingExternal=byId("graph-external").checked;
+  const data=connections(repo,includingExternal);
+  const actualLinks=data.edges.filter(e=>e.from.kind==="workflow" && e.to.kind==="workflow").length;
+  const externalNodes=data.nodes.filter(n=>n.kind==="event").length;
   byId("graph-summary").textContent=
-    repo.workflows.length+" workflows · "+sources+" event sources · "+
-    data.edges.length+" declared connections · "+analysisCount+" with trigger metadata";
+    repo.workflows.length+" workflows · "+actualLinks+" workflow-to-workflow links"+
+    (includingExternal ? " · "+externalNodes+" external event sources" : "")+
+    " · "+analysisCount+" with trigger metadata";
   byId("graph-freshness").textContent=(isFallback?"Pages fallback · ":"Status checked · ")+
     new Date(snapshot.generated_at).toLocaleString();
   const area=byId("graph-area");
@@ -300,7 +306,7 @@ function render(repo, snapshot, isFallback) {
   } else {
     area.appendChild(buildSVG(data));
     if (!data.edges.length) area.appendChild(element("p","placeholder",
-      "No cross-workflow relationships found. Check the workflow details below for available event triggers."));
+      "No declared workflow-to-workflow connections. Expand the workflow details below for event triggers."));
   }
   renderDetails(repo);
 }
@@ -333,6 +339,9 @@ async function refresh() {
       byId("graph-freshness").textContent="Repository unavailable";
       byId("graph-details").replaceChildren();
     } else {
+      shownRepo=repo;
+      shownSnapshot=data;
+      shownFallback=fallback;
       render(repo,data,fallback);
     }
   } catch (err) {
@@ -359,4 +368,7 @@ async function initialize() {
   await refresh();
 }
 byId("graph-refresh").addEventListener("click",refresh);
+byId("graph-external").addEventListener("change",() => {
+  if (shownRepo && shownSnapshot) render(shownRepo,shownSnapshot,shownFallback);
+});
 initialize();
