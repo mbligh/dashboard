@@ -46,6 +46,7 @@ export function mergeSnapshot(base, events) {
   const out = structuredClone(base);
   const repositories = new Map(out.repositories.map(r => [r.name, r]));
   const touched = new Map();
+  const labels = new Map();
   for (const e of events) {
     if (!e || !e.repo || !e.run || !Number.isSafeInteger(e.workflow_id)) continue;
     let repo = repositories.get(e.repo);
@@ -59,6 +60,13 @@ export function mergeSnapshot(base, events) {
         url:url(repo.url,e.workflow_path,e.workflow_id),run:null,last_completed:null,active_runs:[]};
       repo.workflows.push(wf);
     }
+    // The YAML workflow name can change without changing its workflow ID.
+    // Use the latest webhook received after the baseline was generated, but
+    // never allow older (possibly out-of-order) events to revert a newer name.
+    if (e.workflow_name && e.received_at && e.received_at > base.generated_at) {
+      const old = labels.get(wf);
+      if (!old || e.received_at > old.received_at) labels.set(wf,e);
+    }
     let runs = touched.get(wf);
     if (!runs) {
       runs = new Map();
@@ -70,6 +78,13 @@ export function mergeSnapshot(base, events) {
     }
     const eventKey = e.run.id + ":" + (e.run.attempt || 1);
     runs.set(eventKey,prefer(runs.get(eventKey),e.run));
+  }
+  for (const [wf,e] of labels) {
+    wf.name = e.workflow_name;
+    if (e.workflow_path) {
+      wf.path = e.workflow_path;
+      wf.url = url("https://github.com/mbligh/" + e.repo,e.workflow_path,e.workflow_id);
+    }
   }
   for (const [wf,runs] of touched) {
     const all = [...runs.values()];
