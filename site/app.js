@@ -175,6 +175,16 @@ function render() {
   if (!shown) container.appendChild(el("p", "placeholder", "No workflows match the selected filters."));
 }
 function freshness() {
+  const warning = byId("source-warning");
+  const problem = fallbackNotice || lastError;
+  warning.hidden = !problem;
+  if (problem) {
+    const checked = snapshot && snapshot.generated_at
+      ? " Snapshot from " + new Date(snapshot.generated_at).toLocaleString() + "."
+      : "";
+    warning.textContent = "Live workflow status is unavailable. Displayed results may be outdated or incorrect." +
+      checked + " Cause: " + problem;
+  }
   if (!snapshot) {
     byId("freshness").textContent = lastError || "Loading snapshot…";
     byId("freshness").classList.toggle("error", !!lastError);
