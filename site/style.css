@@ -130,6 +130,10 @@ footer a { text-decoration: underline; text-underline-offset: 3px; }
 .graph-back a { text-decoration:underline; text-underline-offset:3px; }
 .graph-top { margin-bottom:16px; }
 .graph-summary { color:var(--muted); margin:12px 0 18px; font-size:13px; }
+.graph-toggle { display:inline-flex; align-items:center; gap:8px; padding:9px 12px; margin:0 0 12px;
+  border-radius:8px; border:1px solid var(--line); background:var(--surface); font-size:13px;
+  color:var(--fg); cursor:pointer; }
+.graph-toggle input { cursor:pointer; }
 .graph-legend { display:flex; flex-wrap:wrap; align-items:center; gap:18px; font-size:12px;
   color:var(--muted); margin-bottom:14px; }
 .graph-legend span { display:inline-flex; align-items:center; gap:7px; }
