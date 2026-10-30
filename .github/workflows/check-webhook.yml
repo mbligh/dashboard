@@ -31,6 +31,12 @@ jobs:
               data = json.load(response)
 
           print("HTTP:", status)
+          cors_req = Request(os.environ["WORKER_STATUS_URL"], headers={
+              "Origin": "https://dashboard.mbligh.org",
+              "User-Agent": "mbligh-dashboard-cors-check",
+          })
+          with urlopen(cors_req, timeout=30) as cors_response:
+              print("CORS allow-origin:", cors_response.headers.get("Access-Control-Allow-Origin"))
           print("Status source:", data.get("status_source"))
           print("Baseline timestamp:", data.get("base_generated_at"))
           print("Last webhook:", data.get("last_event_at"))
