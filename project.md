@@ -61,6 +61,8 @@ workflow `jobs.<id>.uses` calls, and literal `gh workflow run FILE` commands.
 The data is stored in each workflow's `triggers`, `calls`,
 `dispatches` fields in `site/status.json`.
 
+The default graph shows workflow-to-workflow connections only, with a checkbox to opt into external event-source arrows. External events remain visible in workflow details by default; their shared arrows can cross unrelated workflows, so they are not drawn until explicitly requested.
+
 Different arrows distinguish external event triggers, workflow_run
 chains, reusable calls, and CLI dispatches. These are static,
 declarative possible trigger relationships, not proof of causality.
