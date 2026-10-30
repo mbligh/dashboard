@@ -41,7 +41,10 @@ class SiteTest(unittest.TestCase):
         self.assertIn('"reuse"', graph_script)
         self.assertIn('"dispatch"', graph_script)
         self.assertIn("buildSVG", graph_script)
-        self.assertIn("connections(repo)", graph_script)
+        self.assertIn("connections(repo,includingExternal)", graph_script)
+        self.assertIn('const includingExternal=byId("graph-external").checked', graph_script)
+        self.assertIn("includeExternalEvents && event !==", graph_script)
+        self.assertIn('id="graph-external"', graph_html)
         self.assertIn('data=await load(LOCAL_STATUS)', graph_script)
 
     def test_favicon_is_linked_svg_with_three_colors(self):
