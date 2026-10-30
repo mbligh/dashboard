@@ -47,6 +47,20 @@ class SiteTest(unittest.TestCase):
         self.assertIn('id="graph-external"', graph_html)
         self.assertIn('data=await load(LOCAL_STATUS)', graph_script)
 
+    def test_live_worker_failure_is_prominently_flagged(self):
+        html = (SITE / "index.html").read_text()
+        graph_html = (SITE / "repo.html").read_text()
+        app = (SITE / "app.js").read_text()
+        graph = (SITE / "repo.js").read_text()
+        css = (SITE / "style.css").read_text()
+        self.assertIn('id="source-warning"', html)
+        self.assertIn('id="graph-warning"', graph_html)
+        self.assertIn('role="alert" hidden', html)
+        self.assertIn('const problem = fallbackNotice || lastError', app)
+        self.assertIn("Displayed results may be outdated or incorrect", app)
+        self.assertIn("Displayed results may be outdated or incorrect", graph)
+        self.assertIn(".source-warning[hidden] { display:none; }", css)
+
     def test_favicon_is_linked_svg_with_three_colors(self):
         html = (SITE / "index.html").read_text()
         self.assertIn('rel="icon" type="image/svg+xml" href="./favicon.svg"', html)
