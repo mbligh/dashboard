@@ -299,6 +299,10 @@ function render(repo, snapshot, isFallback) {
     " · "+analysisCount+" with trigger metadata";
   byId("graph-freshness").textContent=(isFallback?"Pages fallback · ":"Status checked · ")+
     new Date(snapshot.generated_at).toLocaleString();
+  const warning=byId("graph-warning");
+  warning.hidden=!isFallback;
+  if (isFallback) warning.textContent="Live workflow status unavailable. Displayed results may be outdated or incorrect. Snapshot from " +
+    new Date(snapshot.generated_at).toLocaleString() + ".";
   const area=byId("graph-area");
   area.replaceChildren();
   if (!repo.workflows.length) {
@@ -345,6 +349,9 @@ async function refresh() {
       render(repo,data,fallback);
     }
   } catch (err) {
+    const warning=byId("graph-warning");
+    warning.hidden=false;
+    warning.textContent="Live workflow status unavailable: "+err.message;
     area.replaceChildren(element("p","placeholder","Could not load graph: "+err.message));
     byId("graph-freshness").textContent="Data unavailable";
   } finally {
