@@ -107,3 +107,30 @@ test("public endpoints allow requests from custom-domain dashboard",async () => 
   assert.equal(result.status,200);
   assert.equal(result.headers.get("Access-Control-Allow-Origin"),"*");
 });
+
+
+test("new workflow name from recent webhook updates an existing baseline ID",() => {
+  const current=event(run(52,"completed","failure","2026-10-30T11:36:41Z"),7,
+    "MapLibre Compose production smoke tests");
+  current.received_at="2026-10-30T11:45:26Z";
+  const oldName=event(run(47,"completed","success","2026-10-30T10:56:56Z"),7,
+    "MapLibre native smoke tests");
+  oldName.received_at="2026-10-30T11:01:00Z";
+  const withOldLabel=structuredClone(baseline);
+  withOldLabel.generated_at="2026-10-30T11:24:20Z";
+  withOldLabel.repositories[0].workflows[0].name="MapLibre native smoke tests";
+  const wf=mergeSnapshot(withOldLabel,[current,oldName]).repositories[0].workflows[0];
+  assert.equal(wf.name,"MapLibre Compose production smoke tests");
+  assert.equal(wf.last_completed.conclusion,"failure");
+  assert.equal(wf.last_completed.id,52);
+});
+
+test("old webhook names cannot overwrite newer baseline workflow name",() => {
+  const old=event(run(47,"completed","success","2026-10-30T10:56:56Z"),7,"Old name");
+  old.received_at="2026-10-30T11:00:00Z";
+  const current=structuredClone(baseline);
+  current.generated_at="2026-10-30T11:24:20Z";
+  current.repositories[0].workflows[0].name="Current name";
+  const wf=mergeSnapshot(current,[old]).repositories[0].workflows[0];
+  assert.equal(wf.name,"Current name");
+});
