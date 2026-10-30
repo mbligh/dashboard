@@ -59,6 +59,8 @@ work on both the GitHub Pages project URL and the custom domain.
 The daily collector now fetches each public workflow's source YAML and
 annotates the published snapshot with declared `on:` events, including
 `workflow_run.workflows` relationships (directed arrows between workflows).
+By default the graph **only draws workflow-to-workflow arrows**; shared external triggers (push, schedule, release, manual) are shown in the textual details and can be optionally enabled with the **Show external event triggers** checkbox. This avoids gray event-source arrows crossing unrelated workflow nodes and appearing to be dependencies.
+
 The graph also distinguishes `jobs.<name>.uses: ./.github/workflows/...`
 reusable-workflow calls (dashed purple) and literal `gh workflow run FILE`
 dispatch commands (dashed amber). Push, schedule, release, manual,
