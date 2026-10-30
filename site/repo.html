@@ -17,7 +17,7 @@
         <div class="eyebrow">MBLIGH / GITHUB ACTIONS</div>
         <p class="graph-back"><a href="./">← All repositories</a></p>
         <h1 id="repo-heading">Workflow trigger graph</h1>
-        <p class="muted">Arrows show declared events, chained workflows and reusable-workflow calls.</p>
+        <p class="muted">Arrows show declared workflow-to-workflow connections; external events are optional.</p>
       </div>
       <div class="header-actions">
         <div id="graph-freshness" class="freshness" role="status">Loading snapshot…</div>
@@ -25,8 +25,9 @@
       </div>
     </header>
     <div id="graph-summary" class="graph-summary"></div>
+    <label class="graph-toggle"><input id="graph-external" type="checkbox"> Show external event triggers (push, schedule, manual, release…)</label>
     <div class="graph-legend" aria-label="Graph legend">
-      <span><i class="legend-stroke event"></i> Event trigger</span>
+      <span><i class="legend-stroke event"></i> External event (optional)</span>
       <span><i class="legend-stroke chain"></i> workflow_run</span>
       <span><i class="legend-stroke reuse"></i> Reusable call</span>
       <span><i class="legend-stroke dispatch"></i> CLI dispatch</span>
@@ -34,7 +35,7 @@
     <section id="graph-area" class="graph-area" aria-label="Workflow trigger diagram">
       <p class="placeholder">Loading workflow declarations…</p>
     </section>
-    <p class="graph-note">These are <strong>declared possible triggers</strong>, not observed run-to-run causality. Filters, conditional jobs and branch restrictions can prevent downstream execution. Reusable calls are in-job invocations; <code>needs:</code> between jobs is not shown. Indirect dispatches in scripts cannot always be detected.</p>
+    <p class="graph-note">The default view shows <strong>connections between workflows only</strong>. External events are listed under workflow details; enabling them adds gray arrows from event-source nodes, not from other workflows. All arrows are <strong>declared possible triggers</strong>, not observed run-to-run causality. Filters, conditional jobs and branch restrictions can prevent downstream execution. Reusable calls are in-job invocations; <code>needs:</code> between jobs is not shown. Indirect dispatches in scripts cannot always be detected.</p>
     <h2 class="graph-section-title">Workflow details</h2>
     <section id="graph-details" class="graph-details" aria-label="Workflow trigger details"></section>
     <footer>
