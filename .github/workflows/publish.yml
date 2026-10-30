@@ -35,6 +35,8 @@ jobs:
         run: node --test worker/test/*.test.mjs
       - name: Syntax-check trigger graph page
         run: node --check site/repo.js
+      - name: Test browser graph relationships
+        run: node --test tests/test_graph_browser.cjs
       - name: Collect latest public workflow runs
         env:
           GITHUB_TOKEN: ${{ github.token }}
