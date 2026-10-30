@@ -72,3 +72,22 @@ on scripts are not inferred. Missing/unparseable sources receive
 `analysis_error` so the graph can explicitly flag incomplete data.
 PyYAML BaseLoader avoids the YAML 1.1 boolean treatment of the key `on`.
 The graph refreshes with the daily baseline, while run statuses remain live.
+
+
+## Live status failure diagnosis (2026-10-30)
+
+The `dashboard.mbligh.org` custom domain uses a different browser Origin from
+`mbligh.github.io`. On 2026-10-30 the manually deployed Worker still returned
+`Access-Control-Allow-Origin: https://mbligh.github.io` even though the
+repository source had already been changed to wildcard CORS. GitHub Actions
+diagnostics confirmed that the live Worker did receive Trail2 smoke test run
+#52 as `failure` at 11:45 UTC. Browsers on the custom domain rejected the
+Worker response and fell back to an older green GitHub Pages baseline.
+
+The site now displays an explicit warning on the dashboard and repository
+graphs whenever live status fails, including the snapshot timestamp. The
+Worker merge also updates workflow names when a newer webhook arrives (important
+for the renamed Trail2 production smoke test workflow). Both the CORS fix and
+name update require **manual redeployment of `worker/src/index.mjs` through
+Cloudflare's Edit Code interface** because this Worker is not GitHub-deployed.
+The webhook secret and KV binding remain unchanged.
