@@ -11,7 +11,7 @@ const sandbox = {
   location: {search: "?repo=mapping"},
   document: {getElementById: () => ({addEventListener() {}})},
 };
-vm.runInNewContext(script + "\n;globalThis.__connections=connections;", sandbox, {
+vm.runInNewContext(script + "\n;globalThis.__connections=connections;globalThis.__link=workflowActionsUrl;", sandbox, {
   filename: "site/repo.js",
 });
 const connections = sandbox.__connections;
@@ -59,4 +59,27 @@ test("external event arrows appear only when explicitly enabled", () => {
   assert.ok(eventEdges.every(x=>x.from.kind==="event" && x.to.kind==="workflow"));
   assert.ok(eventEdges.some(x=>x.from.label==="Schedule" && x.to.label==="Publish mapping pages"));
   assert.ok(graph.edges.some(x=>x.kind==="chain" && x.from.label==="Extract NJ contour vectors"));
+});
+
+
+test("both dashboard views link to Actions history rather than snapshot YAML URLs", () => {
+  const oldUrl = "https://github.com/mbligh/demo/blob/main/.github/workflows/build.yml";
+  const wf = {id: 123, name: "Build", path: ".github/workflows/build.yml", url: oldUrl};
+  assert.equal(sandbox.__link("demo", wf), "https://github.com/mbligh/demo/actions/workflows/build.yml");
+  assert.equal(sandbox.__link("demo", {id:123,path:null,url:oldUrl}), "https://github.com/mbligh/demo/actions");
+
+  const appScript = fs.readFileSync("site/app.js","utf8").replace(/\binitializeStatusSource\(\);\s*$/, "");
+  const appSandbox = {
+    URL, console, setInterval() {},
+    document: {
+      getElementById: () => ({addEventListener() {}}),
+      addEventListener() {},
+    },
+  };
+  vm.runInNewContext(appScript+"\n;globalThis.__link=workflowActionsUrl;",appSandbox,{
+    filename:"site/app.js",
+  });
+  const repo = {name:"demo",url:"https://github.com/mbligh/demo"};
+  assert.equal(appSandbox.__link(repo,wf),"https://github.com/mbligh/demo/actions/workflows/build.yml");
+  assert.equal(appSandbox.__link(repo,{id:123,path:null,url:oldUrl}),"https://github.com/mbligh/demo/actions");
 });
