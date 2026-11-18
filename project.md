@@ -8,6 +8,8 @@
 - Use full-width status backgrounds based only on the last COMPLETED run (green success, red failure, yellow other/never completed). Show unfinished runs separately as clickable blue notices, supporting concurrent runs. No status dots.
 - Use a red/amber/green traffic-signal SVG favicon.
 - Workflow names must open GitHub Actions workflow history (`/actions/workflows/<filename>`), not the YAML source-code page; run-number links open individual runs.
+- Main dashboard and trigger graph must construct those links from workflow paths, not from external status URLs. If a path is unavailable, link to the repository Actions list (numeric workflow IDs do not work in GitHub's web URL).
+- Version frontend JavaScript references when changing link behavior so cached browser scripts do not outlive the deployment.
 - No client-side GitHub API requests, access tokens, database, or JavaScript build chain.
 - Do not publish private repository names or workflow metadata.
 - Keep GitHub REST API usage low; provide a path to webhook-driven updates.
