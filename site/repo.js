@@ -59,6 +59,12 @@ function fileName(path) {
   const m = /^\.github\/workflows\/([^/]+\.ya?ml)$/.exec(path || "");
   return m ? m[1] : null;
 }
+function workflowActionsUrl(repoName, wf) {
+  // Always derive the run-history link, never use a possibly stale YAML URL.
+  const base = "https://github.com/mbligh/" + encodeURIComponent(repoName);
+  const filename = fileName(wf.path);
+  return base + (filename ? "/actions/workflows/" + encodeURIComponent(filename) : "/actions");
+}
 function connections(repo, includeExternalEvents = false) {
   const nodes = [], edges = [];
   const byWorkflow = new Map(), byName = new Map(), byFilename = new Map(), sources = new Map();
@@ -228,7 +234,7 @@ function buildSVG(data) {
       transform:"translate("+n.x+" "+n.y+")"});
     let container=group;
     if (n.workflow) {
-      const link=svg("a",{href:n.workflow.url,"aria-label":"Open GitHub workflow: "+n.label});
+      const link=svg("a",{href:workflowActionsUrl(repoName,n.workflow),"aria-label":"Open GitHub workflow: "+n.label});
       group.appendChild(link);
       container=link;
     }
@@ -262,7 +268,7 @@ function renderDetails(repo) {
     const detail=element("details","graph-detail");
     const header=element("summary");
     const link=element("a",null,wf.name);
-    link.href=wf.url;
+    link.href=workflowActionsUrl(repo.name,wf);
     link.target="_blank";
     link.rel="noopener noreferrer";
     header.appendChild(link);
