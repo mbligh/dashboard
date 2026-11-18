@@ -27,6 +27,14 @@ function githubLink(url, label, cls) {
   }
   return node;
 }
+function workflowActionsUrl(repo, workflow) {
+  // Do not trust snapshot URLs: older Pages/Worker deployments may still
+  // contain links to the YAML blob rather than the Actions run history.
+  const path = typeof workflow.path === "string" ? workflow.path : "";
+  const match = /^\\.github\\/workflows\\/([^/]+\\.ya?ml)$/.exec(path);
+  const id = match ? match[1] : String(workflow.id || "");
+  return repo.url.replace(/\\/$/, "") + "/actions/workflows/" + encodeURIComponent(id);
+}
 function completedRun(workflow) {
   if (Object.prototype.hasOwnProperty.call(workflow, "last_completed")) return workflow.last_completed;
   return workflow.run && workflow.run.status === "completed" ? workflow.run : null;
@@ -139,7 +147,7 @@ function render() {
       const kind = category(wf);
       const row = el("div", "workflow " + kind);
       const name = el("div", "workflow-name");
-      name.appendChild(githubLink(wf.url, wf.name));
+      name.appendChild(githubLink(workflowActionsUrl(repo, wf), wf.name));
       if (wf.state !== "active") {
         append(name, el("span", "dim", " · " + wf.state.replaceAll("_", " ")));
       }
