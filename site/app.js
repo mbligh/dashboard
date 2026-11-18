@@ -28,12 +28,13 @@ function githubLink(url, label, cls) {
   return node;
 }
 function workflowActionsUrl(repo, workflow) {
-  // Do not trust snapshot URLs: older Pages/Worker deployments may still
-  // contain links to the YAML blob rather than the Actions run history.
+  // Link to run history, never a YAML blob URL from a stale snapshot.
+  const base = "https://github.com/mbligh/" + encodeURIComponent(repo.name);
   const path = typeof workflow.path === "string" ? workflow.path : "";
   const match = /^\.github\/workflows\/([^/]+\.ya?ml)$/.exec(path);
-  const id = match ? match[1] : String(workflow.id || "");
-  return repo.url.replace(/\/$/, "") + "/actions/workflows/" + encodeURIComponent(id);
+  // A numeric workflow ID is not a valid GitHub web URL. Show all runs
+  // for this repository when the workflow filename is unavailable.
+  return base + (match ? "/actions/workflows/" + encodeURIComponent(match[1]) : "/actions");
 }
 function completedRun(workflow) {
   if (Object.prototype.hasOwnProperty.call(workflow, "last_completed")) return workflow.last_completed;
