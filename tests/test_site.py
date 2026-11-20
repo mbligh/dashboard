@@ -34,7 +34,7 @@ class SiteTest(unittest.TestCase):
         graph_html = (SITE / "repo.html").read_text()
         graph_script = (SITE / "repo.js").read_text()
         self.assertIn('graphLink.href = "./repo.html?repo="', index_script)
-        self.assertIn('src="./repo.js"', graph_html)
+        self.assertRegex(graph_html, r'src="\./repo\.js(?:\?[^"]*)?"')
         self.assertIn('id="graph-area"', graph_html)
         self.assertIn('id="graph-details"', graph_html)
         self.assertIn('"workflow_run"', graph_script)
