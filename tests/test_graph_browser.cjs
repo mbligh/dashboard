@@ -11,7 +11,7 @@ const sandbox = {
   location: {search: "?repo=mapping"},
   document: {getElementById: () => ({addEventListener() {}})},
 };
-vm.runInNewContext(script + "\n;globalThis.__connections=connections;globalThis.__link=workflowActionsUrl;", sandbox, {
+vm.runInNewContext(script + "\n;globalThis.__connections=connections;globalThis.__link=workflowActionsUrl;globalThis.__category=category;globalThis.__reusable=reusableOnly;", sandbox, {
   filename: "site/repo.js",
 });
 const connections = sandbox.__connections;
@@ -82,4 +82,26 @@ test("both dashboard views link to Actions history rather than snapshot YAML URL
   const repo = {name:"demo",url:"https://github.com/mbligh/demo"};
   assert.equal(appSandbox.__link(repo,wf),"https://github.com/mbligh/demo/actions/workflows/build.yml");
   assert.equal(appSandbox.__link(repo,{id:123,path:null,url:oldUrl}),"https://github.com/mbligh/demo/actions");
+});
+
+test("reusable-only workflows do not count as standalone failures", () => {
+  const appScript = fs.readFileSync("site/app.js","utf8").replace(/\binitializeStatusSource\(\);\s*$/, "");
+  const appSandbox = {
+    URL, console, setInterval() {},
+    document: {getElementById: () => ({addEventListener() {}}), addEventListener() {}},
+  };
+  vm.runInNewContext(appScript+"\n;globalThis.__stats=countStats;globalThis.__standalone=standaloneWorkflows;",appSandbox);
+  const failed = {status:"completed",conclusion:"failure"};
+  const reusable = {id:1,triggers:[{event:"workflow_call"}],last_completed:failed};
+  const mixed = {id:2,triggers:[{event:"workflow_call"},{event:"push"}],last_completed:failed};
+  const unknown = {id:3,last_completed:failed};
+  const invalid = {id:4,triggers:[{event:"workflow_call"}],analysis_error:"invalid YAML",last_completed:failed};
+  const empty = {id:5,triggers:[],last_completed:failed};
+  const repo = {workflows:[reusable,mixed,unknown,invalid,empty]};
+  assert.deepEqual(Array.from(appSandbox.__standalone(repo),wf=>wf.id),[2,3,4,5]);
+  const stats = appSandbox.__stats({repositories:[repo]});
+  assert.equal(stats.workflows,4);
+  assert.equal(stats.failure,4);
+  assert.equal(sandbox.__category(reusable),"neutral");
+  for (const wf of [mixed,unknown,invalid,empty]) assert.equal(sandbox.__category(wf),"failure");
 });

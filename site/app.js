@@ -36,6 +36,13 @@ function workflowActionsUrl(repo, workflow) {
   // for this repository when the workflow filename is unavailable.
   return base + (match ? "/actions/workflows/" + encodeURIComponent(match[1]) : "/actions");
 }
+function reusableOnly(wf) {
+  return !wf.analysis_error && Array.isArray(wf.triggers) && wf.triggers.length > 0 &&
+    wf.triggers.every(trigger => trigger.event === "workflow_call");
+}
+function standaloneWorkflows(repo) {
+  return repo.workflows.filter(wf => !reusableOnly(wf));
+}
 function completedRun(workflow) {
   if (Object.prototype.hasOwnProperty.call(workflow, "last_completed")) return workflow.last_completed;
   return workflow.run && workflow.run.status === "completed" ? workflow.run : null;
@@ -75,7 +82,7 @@ function countStats(data) {
   const stats = {repos: 0, workflows: 0, failure: 0, running: 0, success: 0};
   stats.repos = data.repositories.length;
   for (const repo of data.repositories) {
-    for (const workflow of repo.workflows) {
+    for (const workflow of standaloneWorkflows(repo)) {
       stats.workflows++;
       const cls = category(workflow);
       if (cls in stats) stats[cls]++;
@@ -117,11 +124,12 @@ function render() {
   let shown = 0;
   for (const repo of snapshot.repositories) {
     const repoMatch = repo.name.toLowerCase().includes(query);
-    const visible = repo.workflows.filter((wf) =>
+    const workflows = standaloneWorkflows(repo);
+    const visible = workflows.filter((wf) =>
       matches(wf) && (repoMatch || wf.name.toLowerCase().includes(query)));
-    if (!visible.length && !(state.showEmpty && !repo.workflows.length &&
+    if (!visible.length && !(state.showEmpty && !workflows.length &&
       (repoMatch || !query) && state.filter === "all")) continue;
-    if (!visible.length && repo.workflows.length) continue;
+    if (!visible.length && workflows.length) continue;
     const details = el("details", "repo");
     details.dataset.repo = repo.name;
     details.open = Object.prototype.hasOwnProperty.call(openness, repo.name) ? openness[repo.name] : true;
@@ -133,16 +141,16 @@ function render() {
     graphLink.addEventListener("click", event => event.stopPropagation());
     const titleAndGraph = append(el("span", "repo-heading-content"), title, graphLink);
     const totals = el("span", "repo-totals");
-    const failing = repo.workflows.filter((w) => category(w) === "failure").length;
-    const running = repo.workflows.filter((w) => activeRuns(w).length).length;
+    const failing = workflows.filter((w) => category(w) === "failure").length;
+    const running = workflows.filter((w) => activeRuns(w).length).length;
     if (failing) totals.appendChild(pill(failing + " failing", "failure"));
     if (running) totals.appendChild(pill(running + " running", "running"));
     if (repo.archived) totals.appendChild(pill("Archived", "neutral"));
-    totals.appendChild(pill(repo.workflows.length + " workflows", "neutral"));
+    totals.appendChild(pill(workflows.length + " workflows", "neutral"));
     append(head, titleAndGraph, totals);
     details.appendChild(head);
-    if (!repo.workflows.length) {
-      details.appendChild(el("div", "empty", "No GitHub Actions workflows"));
+    if (!workflows.length) {
+      details.appendChild(el("div", "empty", "No standalone GitHub Actions workflows"));
     }
     for (const wf of visible) {
       const kind = category(wf);

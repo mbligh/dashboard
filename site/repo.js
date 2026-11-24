@@ -24,11 +24,16 @@ function svg(name, attributes = {}, label) {
   return node;
 }
 function slug(s) { return String(s || "").toLocaleLowerCase().trim(); }
+function reusableOnly(wf) {
+  return !wf.analysis_error && Array.isArray(wf.triggers) && wf.triggers.length > 0 &&
+    wf.triggers.every(trigger => trigger.event === "workflow_call");
+}
 function doneRun(wf) {
   if (Object.hasOwn(wf, "last_completed")) return wf.last_completed;
   return wf.run && wf.run.status === "completed" ? wf.run : null;
 }
 function category(wf) {
+  if (reusableOnly(wf)) return "neutral";
   const result = doneRun(wf);
   if (!result) return "never";
   if (result.conclusion === "success") return "success";
@@ -246,8 +251,9 @@ function buildSVG(data) {
     if (n.workflow) {
       const last=doneRun(n.workflow);
       const active=(n.workflow.active_runs || []).length;
-      let status = last ? (last.conclusion || "Completed") : "No completed run";
-      if (active) status+=" · "+active+" active";
+      let status = reusableOnly(n.workflow) ? "Reusable · status in caller" :
+        last ? (last.conclusion || "Completed") : "No completed run";
+      if (active && !reusableOnly(n.workflow)) status+=" · "+active+" active";
       container.appendChild(svg("text",{x:13,y:cellH-8,class:"graph-subtitle"},status));
     } else {
       container.appendChild(svg("text",{x:13,y:cellH-8,class:"graph-subtitle"},"Event source"));
@@ -272,7 +278,7 @@ function renderDetails(repo) {
     link.target="_blank";
     link.rel="noopener noreferrer";
     header.appendChild(link);
-    header.appendChild(element("span","graph-state",doneRun(wf)?.conclusion || "Never completed"));
+    header.appendChild(element("span","graph-state",reusableOnly(wf) ? "Reusable · status in caller" : (doneRun(wf)?.conclusion || "Never completed")));
     detail.appendChild(header);
     const list=element("ul");
     if (wf.analysis_error) list.appendChild(element("li","graph-unknown",

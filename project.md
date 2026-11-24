@@ -3,7 +3,8 @@
 ## Requirements
 
 - One public GitHub Pages dashboard for the latest run of every GitHub Actions workflow in each public \`mbligh\` repository.
-- Auto-discover repositories and workflows. Include inactive and rarely run workflows, not just the most recent runs of each repo.
+- Auto-discover repositories and workflows. Include inactive and rarely run standalone workflows, not just the most recent runs of each repo.
+- Reusable-only workflows (`workflow_call` is their sole trigger) are excluded from standalone dashboard rows and totals. Keep their nodes and edges in the trigger graph with neutral status; results belong to callers. Preserve workflows with mixed triggers or unknown/failed source analysis so validation failures remain visible.
 - Show success, failure, cancellation, running/queued and never-run states. Provide search, filters, time and direct GitHub workflow/run links.
 - Use full-width status backgrounds based only on the last COMPLETED run (green success, red failure, yellow other/never completed). Show unfinished runs separately as clickable blue notices, supporting concurrent runs. No status dots.
 - Use a red/amber/green traffic-signal SVG favicon.
