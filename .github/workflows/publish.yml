@@ -11,6 +11,7 @@ on:
     types: [refresh-dashboard]
 
 permissions:
+  actions: read  # Check the uploaded artifact is visible to the Pages deployment API
   contents: read
   pages: write
   id-token: write
@@ -50,9 +51,35 @@ jobs:
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
       - name: Upload site
+        id: upload
         uses: actions/upload-pages-artifact@v4
         with:
           path: site
+      - name: Wait for uploaded Pages artifact
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact_id }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$ARTIFACT_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::Pages upload did not return an artifact ID"
+            exit 1
+          fi
+          for attempt in {1..12}; do
+            if ids=$(timeout 10s gh api --method GET \
+                "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" \
+                -f name=github-pages \
+                --jq '.artifacts[] | select(.name == "github-pages" and .expired == false) | .id') &&
+                grep -Fxq "$ARTIFACT_ID" <<< "$ids"; then
+              echo "Pages artifact $ARTIFACT_ID is visible (attempt $attempt)"
+              exit 0
+            fi
+            echo "Pages artifact $ARTIFACT_ID not visible yet (attempt $attempt/12)"
+            if (( attempt < 12 )); then sleep 5; fi
+          done
+          echo "::error::Uploaded Pages artifact $ARTIFACT_ID did not become visible after 12 attempts"
+          exit 1
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4

@@ -94,3 +94,7 @@ for the renamed Trail2 production smoke test workflow). Both the CORS fix and
 name update require **manual redeployment of `worker/src/index.mjs` through
 Cloudflare's Edit Code interface** because this Worker is not GitHub-deployed.
 The webhook secret and KV binding remain unchanged.
+
+## Pages artifact visibility
+
+After uploading the Pages artifact, the publishing workflow polls the run's artifact-list API for the exact newly uploaded artifact ID (not merely its name). It retries up to 12 times with five-second pauses, a ten-second per-request timeout and a three-minute step timeout. Deployment begins only once the artifact is visible and unexpired; an exhausted check fails explicitly. This guards against GitHub's artifact-list eventual-consistency race without suppressing actual deployment failures.
