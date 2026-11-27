@@ -98,3 +98,15 @@ The webhook secret and KV binding remain unchanged.
 ## Pages artifact visibility
 
 After uploading the Pages artifact, the publishing workflow polls the run's artifact-list API for the exact newly uploaded artifact ID (not merely its name). It retries up to 12 times with five-second pauses, a ten-second per-request timeout and a three-minute step timeout. Deployment begins only once the artifact is visible and unexpired; an exhausted check fails explicitly. This guards against GitHub's artifact-list eventual-consistency race without suppressing actual deployment failures.
+
+## Local service status
+
+The existing Worker accepts signed, versioned external group snapshots via
+`POST /external-status/<group>`, with a dedicated per-group HMAC secret,
+bounded validated payloads and timestamp freshness. Each explicitly enabled
+group (default pvr) uses one persistent `status:<group>` KV value and one
+additional KV read per refresh, no extra list. The Pages UI renders external
+groups separately from workflow statistics, with last attempt, success,
+failure count, retry deadline and stale heartbeat detection (90 minutes).
+Missing external data or KV read failure must not hide GitHub workflow status.
+Worker deployment and secret configuration remain manual; see worker/README.md.

@@ -110,8 +110,53 @@ function matches(workflow) {
   if (["success","never"].includes(state.filter) && state.filter !== kind) return false;
   return true;
 }
+function renderExternal() {
+  const container = byId("external-status");
+  container.replaceChildren();
+  const groups = snapshot?.external_status;
+  if (!Array.isArray(groups)) {
+    container.appendChild(el("p","external-notice",
+      "Local status unavailable — live Worker required."));
+    return;
+  }
+  for (const group of groups) {
+    const panel = el("section","repo external-group");
+    const heading = el("div","external-heading");
+    append(heading,el("strong","",group.title || group.group));
+    if (group.unavailable) {
+      append(heading,el("span","stale",group.unavailable));
+      panel.appendChild(heading); container.appendChild(panel); continue;
+    }
+    const age = Date.now() - Date.parse(group.published_at);
+    const stale = !Number.isFinite(age) || age > 90*60000 || age < -300000 ||
+      !!lastError || !!fallbackNotice;
+    append(heading,el("span",stale?"stale":"muted",
+      (stale?"Stale · ":"Updated ") + relativeTime(group.published_at)));
+    panel.appendChild(heading);
+    for (const item of group.items || []) {
+      const kind = stale ? "warning" :
+        ["success","failure"].includes(item.status) ? item.status : "neutral";
+      const status = item.status === "failure" ? "Failed ×" + item.failures :
+        {success:"Success",unknown:"Unknown",running:"Running"}[item.status] || "Unknown";
+      const row = el("div","workflow external-row " + kind);
+      const label = el("div","workflow-name",item.name);
+      const result = el("div","badge",(stale?"Last known: ":"") + status);
+      const attempt = el("div","external-meta","Attempt: " + relativeTime(item.last_attempt));
+      const success = el("div","external-meta","Success: " + relativeTime(item.last_success));
+      if (item.last_attempt) attempt.title = new Date(item.last_attempt).toLocaleString();
+      if (item.last_success) success.title = new Date(item.last_success).toLocaleString();
+      const retry = el("div","external-meta",item.retry_not_before ?
+        "Retry: " + new Date(item.retry_not_before).toLocaleString() : "—");
+      if (item.reason) append(retry,el("div","",item.reason.replaceAll("_"," ")));
+      append(row,label,result,attempt,success,retry);
+      panel.appendChild(row);
+    }
+    container.appendChild(panel);
+  }
+}
 function render() {
   summary();
+  renderExternal();
   const container = byId("repos");
   const openness = {};
   container.querySelectorAll("details[data-repo]").forEach((node) => { openness[node.dataset.repo] = node.open; });
@@ -246,6 +291,7 @@ async function refresh() {
   } finally {
     button.disabled = false;
     freshness();
+    renderExternal();
   }
 }
 byId("search").addEventListener("input", (event) => { state.query = event.target.value; render(); });
@@ -254,7 +300,7 @@ byId("empty").addEventListener("change", (event) => { state.showEmpty = event.ta
 byId("refresh").addEventListener("click", refresh);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
 setInterval(() => { if (!document.hidden) refresh(); }, 120000);
-setInterval(freshness, 30000);
+setInterval(() => { freshness(); renderExternal(); }, 30000);
 async function initializeStatusSource() {
   try {
     const response = await fetch("./config.json", {cache:"no-store"});

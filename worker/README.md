@@ -157,3 +157,28 @@ Check the GitHub App's Recent deliveries, the Worker's HTTP response, and
 logs. Worker source is under `worker/src/index.mjs`; tests run in
 the GitHub Actions publication workflow. Local Node.js is not required.
 
+
+## External status publishers (PVR and other local jobs)
+
+The Worker accepts HMAC-SHA256 signed POST requests at
+`/external-status/pvr`, using the **separate** Worker secret
+`EXTERNAL_STATUS_SECRET_PVR` (generate with `openssl rand -hex 32`).
+The client signs the exact UTF-8 JSON request body and sends
+`X-Status-Signature: sha256=<hex digest>`. The payload is version 1:
+```json
+{"version":1,"group":"pvr","title":"PVR — Indexers","published_at":"2026-11-27T21:00:00Z","items":[{"id":"bbc","name":"BBC iPlayer","status":"success","failures":0,"last_attempt":"2026-11-27T20:50:00Z","last_success":"2026-11-27T20:50:00Z","retry_not_before":null,"reason":null}]}
+```
+Publication time must be within five minutes of Worker time; use a single
+publisher per group. Status values: success, failure, unknown, running.
+Only explicitly allowed fields are stored; never put secrets, raw errors,
+URLs or internal paths into public names/reasons. The snapshot is stored
+as one persistent KV value `status:pvr`, read once per dashboard refresh;
+old snapshots remain visible but become stale after 90 minutes.
+No extra KV list operation. Local status does not affect workflow totals.
+Other groups can be enabled by setting `EXTERNAL_STATUS_GROUPS` to a
+comma-separated list of group slugs (default: pvr) and a separate
+`EXTERNAL_STATUS_SECRET_<UPPERCASE_GROUP_WITH_UNDERSCORES>` per group.
+Group registration is explicit; a missing/bad snapshot does not break
+GitHub status. Redeploy this Worker manually using Edit Code, keeping
+the current KV binding and GitHub webhook secret. Set the new secret
+before running the PVR publisher. See mbligh/pvr STATUS_PUBLISHING.md.

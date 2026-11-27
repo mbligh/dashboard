@@ -140,13 +140,94 @@ async function getEvents(kv) {
     if (!cursor || events.length >= 10000) throw Error("Event-list limit exceeded");
   } while (true);
 }
+// External publishers have separate per-group secrets, never the GitHub secret.
+// Explicit group registration avoids extra KV list operations.
+const groupPattern = /^[a-z][a-z0-9-]{0,39}$/;
+const idPattern = /^[a-zA-Z0-9][a-zA-Z0-9:_-]{0,79}$/;
+const reasonPattern = /^[a-z][a-z0-9_]{0,63}$/;
+function externalGroups(env) {
+  return [...new Set((env.EXTERNAL_STATUS_GROUPS ?? "pvr").split(",")
+    .map(s => s.trim()).filter(s => groupPattern.test(s)))].slice(0, 20);
+}
+function cleanDate(value) {
+  if (value == null) return null;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/.test(value)
+      || !Number.isFinite(Date.parse(value))) throw Error("Invalid timestamp");
+  return new Date(value).toISOString();
+}
+export function validateExternal(payload, group) {
+  if (!payload || payload.version !== 1 || payload.group !== group ||
+      typeof payload.title !== "string" || !payload.title.trim() ||
+      payload.title.length > 100 || !Array.isArray(payload.items) ||
+      !payload.items.length || payload.items.length > 100) throw Error("Invalid snapshot");
+  const seen = new Set();
+  const items = payload.items.map(item => {
+    if (!item || typeof item.id !== "string" || !idPattern.test(item.id) ||
+        seen.has(item.id) || typeof item.name !== "string" || !item.name.trim() ||
+        item.name.length > 100 || !["success","failure","unknown","running"].includes(item.status) ||
+        !Number.isSafeInteger(item.failures) || item.failures < 0 ||
+        (item.reason != null && (typeof item.reason !== "string" || !reasonPattern.test(item.reason))))
+      throw Error("Invalid item");
+    seen.add(item.id);
+    return {id:item.id,name:item.name,status:item.status,failures:item.failures,
+      last_attempt:cleanDate(item.last_attempt),last_success:cleanDate(item.last_success),
+      retry_not_before:cleanDate(item.retry_not_before),reason:item.reason ?? null};
+  });
+  const published_at = cleanDate(payload.published_at);
+  if (!published_at) throw Error("Missing publication timestamp");
+  return {version:1,group,title:payload.title,published_at,items};
+}
+async function externalPost(req, env, group) {
+  if (!externalGroups(env).includes(group)) return response({error:"Unknown group"},404);
+  const secret = env["EXTERNAL_STATUS_SECRET_" + group.toUpperCase().replaceAll("-","_")];
+  if (!secret || !env.STATUS_EVENTS) return response({error:"Not configured"},503);
+  // Bound the body even if Content-Length is absent or dishonest.
+  const reader = req.body?.getReader();
+  if (!reader) return response({error:"Missing body"},400);
+  const chunks = []; let size = 0;
+  while (true) {
+    const {done,value} = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > 65536) { await reader.cancel(); return response({error:"Body too large"},413); }
+    chunks.push(value);
+  }
+  const body = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) { body.set(chunk,offset); offset += chunk.byteLength; }
+  if (!await authorized(body,req.headers.get("X-Status-Signature"),secret))
+    return response({error:"Invalid signature"},401);
+  let data;
+  try {
+    data = validateExternal(JSON.parse(new TextDecoder().decode(body)),group);
+    if (Math.abs(Date.now()-Date.parse(data.published_at)) > 300000)
+      throw Error("Expired publication timestamp");
+  } catch { return response({error:"Invalid or expired snapshot"},422); }
+  const key = "status:" + group;
+  const old = await env.STATUS_EVENTS.get(key,{type:"json"});
+  if (old && old.published_at >= data.published_at)
+    return response({ok:true,ignored:true});
+  await env.STATUS_EVENTS.put(key,JSON.stringify(data));
+  return response({ok:true},202);
+}
+async function getExternal(env) {
+  return Promise.all(externalGroups(env).map(async group => {
+    try {
+      const raw = await env.STATUS_EVENTS.get("status:" + group,{type:"json"});
+      return raw ? validateExternal(raw,group) : {group,unavailable:"No snapshot published"};
+    } catch { return {group,unavailable:"Snapshot unavailable"}; }
+  }));
+}
+
 async function status(env) {
   if (!env.STATUS_EVENTS) return response({error:"KV not bound"},503);
   const upstream=await fetch(BASE,{cf:{cacheTtl:300,cacheEverything:true}});
   if (!upstream.ok) return response({error:"Baseline unavailable"},503);
   const base=await upstream.json();
   if (!Array.isArray(base.repositories)) return response({error:"Invalid baseline"},503);
-  return response(mergeSnapshot(base,await getEvents(env.STATUS_EVENTS)));
+  const result = mergeSnapshot(base,await getEvents(env.STATUS_EVENTS));
+  result.external_status = await getExternal(env);
+  return response(result);
 }
 export default {
   async fetch(req,env) {
@@ -154,6 +235,8 @@ export default {
     try {
       if (req.method === "GET" && pathname === "/status.json") return await status(env);
       if (req.method === "POST" && pathname === "/github-webhook") return await webhook(req,env);
+      const external = /^\/external-status\/([a-z][a-z0-9-]{0,39})$/.exec(pathname);
+      if (req.method === "POST" && external) return await externalPost(req,env,external[1]);
       if (req.method === "GET" && pathname === "/health") return response({ok:true});
       return response({error:"Not found"},404);
     } catch (error) {
